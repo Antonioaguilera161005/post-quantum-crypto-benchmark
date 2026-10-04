@@ -1,0 +1,4 @@
+scenario,applications,engineers,hourly_engineering_cost,crypto_inventory_hours,implementation_hours,testing_hours,pki_hours,deployment_hours,training_hours,hsm_upgrade_cost
+Startup,5,2,60,24,80,40,16,24,8,0
+Mid-size,30,6,75,120,600,300,120,160,48,15000
+Enterprise,200,20,95,800,4000,2200,900,1200,300,120000

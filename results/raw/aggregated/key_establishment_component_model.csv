@@ -1,0 +1,4 @@
+scenario,algorithm,crypto_work_ms,transmitted_bytes,compute_ratio_vs_x25519,traffic_ratio_vs_x25519
+Classical,X25519,0.2267372199999999,64,1.0,1.0
+Post-Quantum,ML-KEM-768,1.572661685,2272,6.936054367253866,35.5
+Hybrid,X25519+ML-KEM-768,1.8145109849999999,2336,8.002704562576893,36.5

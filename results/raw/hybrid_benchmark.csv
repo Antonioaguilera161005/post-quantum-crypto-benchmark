@@ -1,0 +1,2 @@
+algorithm,operation,iterations,mean_ms,median_ms,p95_ms,p99_ms,std_ms,min_ms,max_ms,ops_per_second,transmitted_bytes,shared_secret_bytes
+X25519+ML-KEM-768,full_hybrid_establishment,2000,2.1138688,1.94665,2.9345399999999997,3.5113559999999997,1.0532892384889159,1.4365,42.8252,473.06625652452976,2336,32

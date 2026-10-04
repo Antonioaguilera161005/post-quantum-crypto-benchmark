@@ -1,3 +1,5 @@
+import argparse
+
 from pathlib import Path
 from time import perf_counter_ns
 
@@ -11,133 +13,225 @@ BENCHMARK_ITERATIONS = 2000
 
 
 def summarize(samples_ns):
-    samples_ms = pd.Series(
-        samples_ns,
-        dtype="float64"
-    ) / 1_000_000
+
+    samples_ms = (
+        pd.Series(
+            samples_ns,
+            dtype="float64",
+        )
+        / 1_000_000
+    )
 
     mean_ms = samples_ms.mean()
 
     return {
         "mean_ms": mean_ms,
         "median_ms": samples_ms.median(),
-        "p95_ms": samples_ms.quantile(0.95),
-        "p99_ms": samples_ms.quantile(0.99),
-        "std_ms": samples_ms.std(ddof=0),
-        "min_ms": samples_ms.min(),
-        "max_ms": samples_ms.max(),
-        "ops_per_second": 1000 / mean_ms,
+        "p95_ms":
+            samples_ms.quantile(0.95),
+        "p99_ms":
+            samples_ms.quantile(0.99),
+        "std_ms":
+            samples_ms.std(ddof=0),
+        "min_ms":
+            samples_ms.min(),
+        "max_ms":
+            samples_ms.max(),
+        "ops_per_second":
+            1000 / mean_ms,
     }
 
 
 def main():
 
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--run-id",
+        type=int,
+        required=True,
+    )
+
+    args = parser.parse_args()
+
+    run_dir = Path(
+        f"results/raw/runs/"
+        f"run_{args.run_id:02d}"
+    )
+
+    run_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
     print("=" * 60)
     print(" X25519 BENCHMARK")
+    print(f" Run ID: {args.run_id}")
     print("=" * 60)
 
     algorithm = X25519()
 
-    # Warm-up
-    print(f"\nWarm-up: {WARMUP_ITERATIONS} iterations")
+    # ============================================================
+    # WARM-UP
+    # ============================================================
 
-    for _ in range(WARMUP_ITERATIONS):
-        alice_private, alice_public = algorithm.keygen()
-        bob_private, bob_public = algorithm.keygen()
+    print(
+        f"\nWarm-up: "
+        f"{WARMUP_ITERATIONS} iterations"
+    )
 
-        alice_secret = algorithm.exchange(
-            alice_private,
-            bob_public
+    for _ in range(
+        WARMUP_ITERATIONS
+    ):
+
+        alice_private, alice_public = (
+            algorithm.keygen()
         )
 
-        bob_secret = algorithm.exchange(
-            bob_private,
-            alice_public
+        bob_private, bob_public = (
+            algorithm.keygen()
         )
 
-        assert alice_secret == bob_secret
+        alice_secret = (
+            algorithm.exchange(
+                alice_private,
+                bob_public,
+            )
+        )
 
-    # ------------------------------------------------
-    # KEYGEN
-    # ------------------------------------------------
+        bob_secret = (
+            algorithm.exchange(
+                bob_private,
+                alice_public,
+            )
+        )
+
+        assert (
+            alice_secret
+            == bob_secret
+        )
+
+    # ============================================================
+    # KEY GENERATION
+    # ============================================================
 
     keygen_times = []
 
-    for _ in range(BENCHMARK_ITERATIONS):
+    for _ in range(
+        BENCHMARK_ITERATIONS
+    ):
 
         start = perf_counter_ns()
 
-        private_key, public_key = algorithm.keygen()
-
-        end = perf_counter_ns()
-
-        keygen_times.append(end - start)
-
-    # ------------------------------------------------
-    # EXCHANGE
-    # ------------------------------------------------
-
-    alice_private, alice_public = algorithm.keygen()
-    bob_private, bob_public = algorithm.keygen()
-
-    exchange_times = []
-
-    for _ in range(BENCHMARK_ITERATIONS):
-
-        start = perf_counter_ns()
-
-        shared_secret = algorithm.exchange(
-            alice_private,
-            bob_public
+        private_key, public_key = (
+            algorithm.keygen()
         )
 
         end = perf_counter_ns()
 
-        exchange_times.append(end - start)
+        keygen_times.append(
+            end - start
+        )
+
+    # ============================================================
+    # EXCHANGE
+    # ============================================================
+
+    alice_private, alice_public = (
+        algorithm.keygen()
+    )
+
+    bob_private, bob_public = (
+        algorithm.keygen()
+    )
+
+    exchange_times = []
+
+    for _ in range(
+        BENCHMARK_ITERATIONS
+    ):
+
+        start = perf_counter_ns()
+
+        shared_secret = (
+            algorithm.exchange(
+                alice_private,
+                bob_public,
+            )
+        )
+
+        end = perf_counter_ns()
+
+        exchange_times.append(
+            end - start
+        )
+
+    # ============================================================
+    # KEY SIZES
+    # ============================================================
 
     public_key_size = len(
-        algorithm.public_key_bytes(alice_public)
+        algorithm.public_key_bytes(
+            alice_public
+        )
     )
 
     private_key_size = len(
-        algorithm.private_key_bytes(alice_private)
+        algorithm.private_key_bytes(
+            alice_private
+        )
     )
+
+    # ============================================================
+    # RESULTS
+    # ============================================================
 
     rows = [
         {
             "algorithm": "X25519",
             "operation": "keygen",
-            "iterations": BENCHMARK_ITERATIONS,
-            **summarize(keygen_times),
-            "public_key_bytes": public_key_size,
-            "secret_key_bytes": private_key_size,
-            "shared_secret_bytes": 32,
+            "iterations":
+                BENCHMARK_ITERATIONS,
+            **summarize(
+                keygen_times
+            ),
+            "public_key_bytes":
+                public_key_size,
+            "secret_key_bytes":
+                private_key_size,
+            "shared_secret_bytes":
+                32,
         },
+
         {
             "algorithm": "X25519",
             "operation": "exchange",
-            "iterations": BENCHMARK_ITERATIONS,
-            **summarize(exchange_times),
-            "public_key_bytes": public_key_size,
-            "secret_key_bytes": private_key_size,
-            "shared_secret_bytes": 32,
-        }
+            "iterations":
+                BENCHMARK_ITERATIONS,
+            **summarize(
+                exchange_times
+            ),
+            "public_key_bytes":
+                public_key_size,
+            "secret_key_bytes":
+                private_key_size,
+            "shared_secret_bytes":
+                32,
+        },
     ]
 
-    df = pd.DataFrame(rows)
-
-    output_path = Path(
-        "results/raw/x25519_benchmark.csv"
+    df = pd.DataFrame(
+        rows
     )
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True
+    output_path = (
+        run_dir
+        / "x25519_benchmark.csv"
     )
 
     df.to_csv(
         output_path,
-        index=False
+        index=False,
     )
 
     print("\n")
@@ -155,22 +249,28 @@ def main():
     ]
 
     print(
-        df[columns].to_string(
+        df[
+            columns
+        ].to_string(
             index=False,
-            float_format=lambda x: f"{x:.6f}"
+            float_format=lambda x:
+                f"{x:.6f}",
         )
     )
 
     print(
-        f"\nPublic key: {public_key_size} bytes"
+        f"\nPublic key: "
+        f"{public_key_size} bytes"
     )
 
     print(
-        f"Private key: {private_key_size} bytes"
+        f"Private key: "
+        f"{private_key_size} bytes"
     )
 
     print(
-        f"\nBenchmark saved to: {output_path}"
+        f"\nBenchmark saved to: "
+        f"{output_path}"
     )
 
 

@@ -1,0 +1,2 @@
+algorithm,operation,iterations,mean_ms,median_ms,p95_ms,p99_ms,std_ms,min_ms,max_ms,ops_per_second
+HKDF-SHA256,derive,2000,0.0067826,0.0063,0.01,0.011301999999999998,0.0017043113682657875,0.006,0.0432,147436.0864565211
