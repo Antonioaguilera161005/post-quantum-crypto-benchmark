@@ -1,5 +1,4 @@
 import argparse
-
 from pathlib import Path
 from time import perf_counter_ns
 
@@ -15,7 +14,6 @@ BENCHMARK_ITERATIONS = 2000
 
 
 def summarize(samples_ns):
-
     samples_ms = (
         pd.Series(
             samples_ns,
@@ -28,25 +26,17 @@ def summarize(samples_ns):
 
     return {
         "mean_ms": mean_ms,
-        "median_ms":
-            samples_ms.median(),
-        "p95_ms":
-            samples_ms.quantile(0.95),
-        "p99_ms":
-            samples_ms.quantile(0.99),
-        "std_ms":
-            samples_ms.std(ddof=0),
-        "min_ms":
-            samples_ms.min(),
-        "max_ms":
-            samples_ms.max(),
-        "ops_per_second":
-            1000 / mean_ms,
+        "median_ms": samples_ms.median(),
+        "p95_ms": samples_ms.quantile(0.95),
+        "p99_ms": samples_ms.quantile(0.99),
+        "std_ms": samples_ms.std(ddof=0),
+        "min_ms": samples_ms.min(),
+        "max_ms": samples_ms.max(),
+        "ops_per_second": 1000 / mean_ms,
     }
 
 
 def main():
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -67,21 +57,19 @@ def main():
         exist_ok=True,
     )
 
-    print("=" * 60)
+    print("=" * 70)
     print(
-        " HYBRID X25519 + "
-        "ML-KEM-768 BENCHMARK"
+        " X25519MLKEM768 FULL-ESTABLISHMENT "
+        "DIAGNOSTIC BENCHMARK"
     )
-    print(
-        f" Run ID: {args.run_id}"
-    )
-    print("=" * 60)
+    print(f" Run ID: {args.run_id}")
+    print("=" * 70)
 
     hybrid = X25519MLKEM768()
 
-    # ============================================================
+    # ========================================================
     # WARM-UP
-    # ============================================================
+    # ========================================================
 
     print(
         f"\nWarm-up: "
@@ -91,83 +79,105 @@ def main():
     for _ in range(
         WARMUP_ITERATIONS
     ):
+        result = hybrid.establish()
 
-        result = (
-            hybrid.establish()
+        assert (
+            result["client_secret"]
+            == result["server_secret"]
         )
 
         assert (
-            result["alice_secret"]
-            == result["bob_secret"]
+            result["hybrid_secret_bytes"]
+            == 64
         )
 
-    # ============================================================
-    # FULL HYBRID ESTABLISHMENT
-    # ============================================================
+    # ========================================================
+    # FULL ESTABLISHMENT DIAGNOSTIC
+    # ========================================================
+    #
+    # This deliberately measures the complete Python
+    # implementation:
+    #
+    # - object creation,
+    # - both X25519 key generations,
+    # - both X25519 exchanges,
+    # - ML-KEM key generation,
+    # - ML-KEM encapsulation,
+    # - ML-KEM decapsulation,
+    # - Python wrapper overhead.
+    #
+    # Therefore it is NOT used as the canonical TLS
+    # performance figure.
+    #
+    # The component-based RFC 10024 model built from primitive
+    # benchmarks is the canonical comparison.
+    # ========================================================
 
     times = []
 
     for _ in range(
         BENCHMARK_ITERATIONS
     ):
-
         start = perf_counter_ns()
 
-        result = (
-            hybrid.establish()
-        )
+        result = hybrid.establish()
 
         end = perf_counter_ns()
 
         assert (
-            result["alice_secret"]
-            == result["bob_secret"]
+            result["client_secret"]
+            == result["server_secret"]
         )
 
         times.append(
             end - start
         )
 
-    stats = summarize(
-        times
+    stats = summarize(times)
+
+    # ========================================================
+    # RFC 10024 CRYPTOGRAPHIC MATERIAL
+    # ========================================================
+
+    client_share_bytes = (
+        result["client_share_bytes"]
     )
 
-    # ============================================================
-    # TRANSMITTED MATERIAL
-    # ============================================================
+    server_share_bytes = (
+        result["server_share_bytes"]
+    )
 
     transmitted_bytes = (
-        2
-        * result[
-            "x25519_public_key_bytes"
-        ]
-        + result[
-            "mlkem_public_key_bytes"
-        ]
-        + result[
-            "mlkem_ciphertext_bytes"
-        ]
+        client_share_bytes
+        + server_share_bytes
     )
 
     row = {
         "algorithm":
-            "X25519+ML-KEM-768",
+            "X25519MLKEM768",
 
         "operation":
-            "full_hybrid_establishment",
+            "full_establishment_diagnostic",
+
+        "benchmark_scope":
+            "diagnostic_only",
 
         "iterations":
             BENCHMARK_ITERATIONS,
 
         **stats,
 
+        "client_share_bytes":
+            client_share_bytes,
+
+        "server_share_bytes":
+            server_share_bytes,
+
         "transmitted_bytes":
             transmitted_bytes,
 
         "shared_secret_bytes":
-            len(
-                result["alice_secret"]
-            ),
+            result["hybrid_secret_bytes"],
     }
 
     df = pd.DataFrame(
@@ -184,14 +194,14 @@ def main():
         index=False,
     )
 
-    # ============================================================
+    # ========================================================
     # DISPLAY
-    # ============================================================
+    # ========================================================
 
     print("\n")
-    print("=" * 60)
-    print("RESULTS")
-    print("=" * 60)
+    print("=" * 70)
+    print("RESULTS — DIAGNOSTIC ONLY")
+    print("=" * 70)
 
     print(
         df[
@@ -202,13 +212,31 @@ def main():
                 "p95_ms",
                 "p99_ms",
                 "ops_per_second",
+                "client_share_bytes",
+                "server_share_bytes",
                 "transmitted_bytes",
+                "shared_secret_bytes",
             ]
         ].to_string(
             index=False,
             float_format=lambda x:
                 f"{x:.6f}",
         )
+    )
+
+    print()
+    print(
+        "NOTE:"
+    )
+    print(
+        "- This is an end-to-end Python diagnostic benchmark."
+    )
+    print(
+        "- It is NOT the canonical performance comparison."
+    )
+    print(
+        "- The canonical model is derived from primitive "
+        "benchmarks using RFC 10024 client/server roles."
     )
 
     print(

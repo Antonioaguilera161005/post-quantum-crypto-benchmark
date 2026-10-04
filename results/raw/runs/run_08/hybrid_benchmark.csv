@@ -1,2 +1,2 @@
-algorithm,operation,iterations,mean_ms,median_ms,p95_ms,p99_ms,std_ms,min_ms,max_ms,ops_per_second,transmitted_bytes,shared_secret_bytes
-X25519+ML-KEM-768,full_hybrid_establishment,2000,0.7157626,0.64255,1.260495,2.2583059999999993,0.4147024588439765,0.3682,6.5213,1397.1112768395553,2336,32
+algorithm,operation,benchmark_scope,iterations,mean_ms,median_ms,p95_ms,p99_ms,std_ms,min_ms,max_ms,ops_per_second,client_share_bytes,server_share_bytes,transmitted_bytes,shared_secret_bytes
+X25519MLKEM768,full_establishment_diagnostic,diagnostic_only,2000,0.403989,0.3734,0.597555,0.7078169999999997,0.11338018763875814,0.3662,2.6916,2475.314921940944,1216,1120,2336,64

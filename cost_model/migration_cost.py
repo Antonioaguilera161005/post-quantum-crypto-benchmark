@@ -3,16 +3,16 @@ from pathlib import Path
 import pandas as pd
 
 
-CONFIG_PATH = Path(
+INPUT_FILE = Path(
     "cost_model/config/migration_scenarios.csv"
 )
 
-OUTPUT_PATH = Path(
+OUTPUT_FILE = Path(
     "results/economic/migration_cost.csv"
 )
 
 
-LABOR_FIELDS = [
+HOUR_COLUMNS = [
     "crypto_inventory_hours",
     "implementation_hours",
     "testing_hours",
@@ -24,169 +24,102 @@ LABOR_FIELDS = [
 
 def main():
 
-    scenarios = pd.read_csv(
-        CONFIG_PATH
+    if not INPUT_FILE.exists():
+        raise FileNotFoundError(
+            f"Missing migration scenario file: {INPUT_FILE}"
+        )
+
+    scenarios = pd.read_csv(INPUT_FILE)
+
+    required_columns = {
+        "scenario",
+        "applications",
+        "engineers",
+        "hourly_engineering_cost",
+        "hsm_upgrade_cost",
+        *HOUR_COLUMNS,
+    }
+
+    missing = required_columns - set(
+        scenarios.columns
     )
 
-    rows = []
-
-    for _, row in scenarios.iterrows():
-
-        hourly_rate = (
-            row["hourly_engineering_cost"]
+    if missing:
+        raise RuntimeError(
+            f"Missing columns: {sorted(missing)}"
         )
 
-        # ---------------------------------------------------------
-        # Individual labor components
-        # ---------------------------------------------------------
+    result = scenarios.copy()
 
-        inventory_cost = (
-            row["crypto_inventory_hours"]
-            * hourly_rate
-        )
+    result["total_engineering_hours"] = (
+        result[HOUR_COLUMNS].sum(axis=1)
+    )
 
-        implementation_cost = (
-            row["implementation_hours"]
-            * hourly_rate
-        )
+    result["engineering_labor_cost"] = (
+        result["total_engineering_hours"]
+        * result["hourly_engineering_cost"]
+    )
 
-        testing_cost = (
-            row["testing_hours"]
-            * hourly_rate
-        )
+    result["total_migration_cost"] = (
+        result["engineering_labor_cost"]
+        + result["hsm_upgrade_cost"]
+    )
 
-        pki_cost = (
-            row["pki_hours"]
-            * hourly_rate
-        )
+    result["model_type"] = (
+        "hypothetical_configurable_scenario"
+    )
 
-        deployment_cost = (
-            row["deployment_hours"]
-            * hourly_rate
-        )
+    result["empirical_market_estimate"] = False
 
-        training_cost = (
-            row["training_hours"]
-            * hourly_rate
-        )
-
-        labor_cost = (
-            inventory_cost
-            + implementation_cost
-            + testing_cost
-            + pki_cost
-            + deployment_cost
-            + training_cost
-        )
-
-        infrastructure_cost = (
-            row["hsm_upgrade_cost"]
-        )
-
-        total_migration_cost = (
-            labor_cost
-            + infrastructure_cost
-        )
-
-        total_hours = sum(
-            row[field]
-            for field in LABOR_FIELDS
-        )
-
-        rows.append(
-            {
-                "scenario":
-                    row["scenario"],
-
-                "applications":
-                    row["applications"],
-
-                "engineers":
-                    row["engineers"],
-
-                "hourly_engineering_cost":
-                    hourly_rate,
-
-                "total_engineering_hours":
-                    total_hours,
-
-                "crypto_inventory_cost":
-                    inventory_cost,
-
-                "implementation_cost":
-                    implementation_cost,
-
-                "testing_cost":
-                    testing_cost,
-
-                "pki_cost":
-                    pki_cost,
-
-                "deployment_cost":
-                    deployment_cost,
-
-                "training_cost":
-                    training_cost,
-
-                "labor_cost":
-                    labor_cost,
-
-                "hsm_upgrade_cost":
-                    infrastructure_cost,
-
-                "total_migration_cost":
-                    total_migration_cost,
-            }
-        )
-
-    result = pd.DataFrame(rows)
-
-    OUTPUT_PATH.parent.mkdir(
+    OUTPUT_FILE.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
     result.to_csv(
-        OUTPUT_PATH,
+        OUTPUT_FILE,
         index=False,
     )
 
-    print("=" * 110)
+    print("=" * 105)
     print(
-        " POST-QUANTUM MIGRATION COST MODEL"
+        " PQC MIGRATION COST MODEL "
+        "— HYPOTHETICAL SCENARIOS"
     )
-    print("=" * 110)
+    print("=" * 105)
 
-    columns = [
+    display_columns = [
         "scenario",
         "applications",
         "engineers",
         "total_engineering_hours",
-        "labor_cost",
+        "hourly_engineering_cost",
+        "engineering_labor_cost",
         "hsm_upgrade_cost",
         "total_migration_cost",
     ]
 
     print(
-        result[
-            columns
-        ].to_string(
-            index=False,
-            float_format=lambda x:
-                f"{x:.2f}",
-        )
+        result[display_columns]
+        .round(2)
+        .to_string(index=False)
     )
 
+    print()
+    print("IMPORTANT:")
     print(
-        f"\nResults saved to: "
-        f"{OUTPUT_PATH}"
+        "- These are configurable scenario outputs."
+    )
+    print(
+        "- They are NOT empirical market estimates."
+    )
+    print(
+        "- Engineering hours and HSM costs are modelling "
+        "assumptions defined in migration_scenarios.csv."
     )
 
-    print(
-        "\nIMPORTANT:"
-        "\nThese are configurable scenario assumptions."
-        "\nThey are NOT claims about actual migration costs."
-    )
+    print()
+    print(f"Saved to: {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

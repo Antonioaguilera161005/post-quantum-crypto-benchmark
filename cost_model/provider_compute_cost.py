@@ -2,67 +2,31 @@ from pathlib import Path
 
 import pandas as pd
 
+from cost_model.pricing import (
+    get_service_pricing,
+)
+
 
 INPUT_FILE = Path(
     "results/economic/operational_impact.csv"
 )
 
-OUTPUT_DIR = Path("results/economic")
-OUTPUT_FILE = OUTPUT_DIR / "provider_compute_cost.csv"
-
-
-# ============================================================
-# PROVIDER COMPUTE ASSUMPTIONS
-# ============================================================
-#
-# These are modelling inputs already used in the project.
-# Later we will move them into a config CSV with:
-#
-# provider
-# region
-# instance
-# VM price
-# vCPU count
-# source
-# checked date
-#
-# For now we keep the same assumptions so the model remains
-# internally consistent while we correct the cryptographic data.
-# ============================================================
-
-PROVIDERS = {
-    "AWS": {
-        "instance": "m7i.large",
-        "region": "Spain",
-        "vm_price_per_hour": 0.1124,
-        "vcpus": 2,
-        "currency": "USD",
-    },
-    "Azure": {
-        "instance": "D2s_v5",
-        "region": "Spain",
-        "vm_price_per_hour": 0.1070,
-        "vcpus": 2,
-        "currency": "USD",
-    },
-    "GCP": {
-        "instance": "e2-standard-2",
-        "region": "Madrid",
-        "vm_price_per_hour": 0.07908,
-        "vcpus": 2,
-        "currency": "USD",
-    },
-}
+OUTPUT_FILE = Path(
+    "results/economic/provider_compute_cost.csv"
+)
 
 
 def main():
 
     if not INPUT_FILE.exists():
         raise FileNotFoundError(
-            f"Missing operational impact file: {INPUT_FILE}"
+            f"Missing operational impact file: "
+            f"{INPUT_FILE}"
         )
 
-    impact = pd.read_csv(INPUT_FILE)
+    impact = pd.read_csv(
+        INPUT_FILE
+    )
 
     required_columns = {
         "handshakes_per_month",
@@ -71,46 +35,76 @@ def main():
         "server_cpu_hours_month",
     }
 
-    missing = required_columns - set(impact.columns)
+    missing = (
+        required_columns
+        - set(impact.columns)
+    )
 
     if missing:
         raise RuntimeError(
-            f"Missing required columns: {sorted(missing)}"
+            f"Missing required columns: "
+            f"{sorted(missing)}"
         )
+
+    pricing_table = (
+        get_service_pricing(
+            "compute"
+        )
+    )
 
     rows = []
 
-    for provider_name, config in PROVIDERS.items():
+    for _, pricing in (
+        pricing_table.iterrows()
+    ):
 
-        price_per_vcpu_hour = (
-            config["vm_price_per_hour"]
-            / config["vcpus"]
+        provider = (
+            pricing["provider"]
         )
 
-        for _, row in impact.iterrows():
+        vm_price_per_hour = float(
+            pricing["price"]
+        )
 
-            server_cpu_hours = (
-                row["server_cpu_hours_month"]
+        vcpus = int(
+            pricing["vcpus"]
+        )
+
+        price_per_vcpu_hour = (
+            vm_price_per_hour
+            / vcpus
+        )
+
+        for _, row in (
+            impact.iterrows()
+        ):
+
+            cpu_hours = (
+                row[
+                    "server_cpu_hours_month"
+                ]
             )
 
             compute_cost = (
-                server_cpu_hours
+                cpu_hours
                 * price_per_vcpu_hour
             )
 
             rows.append(
                 {
                     "handshakes_per_month":
-                        row["handshakes_per_month"],
+                        row[
+                            "handshakes_per_month"
+                        ],
 
                     "provider":
-                        provider_name,
+                        provider,
 
                     "region":
-                        config["region"],
+                        pricing["region"],
 
                     "instance":
-                        config["instance"],
+                        pricing["product"],
 
                     "scenario":
                         row["scenario"],
@@ -119,13 +113,13 @@ def main():
                         row["algorithm"],
 
                     "server_cpu_hours_month":
-                        server_cpu_hours,
+                        cpu_hours,
 
                     "vm_price_per_hour":
-                        config["vm_price_per_hour"],
+                        vm_price_per_hour,
 
                     "vcpus":
-                        config["vcpus"],
+                        vcpus,
 
                     "price_per_vcpu_hour":
                         price_per_vcpu_hour,
@@ -134,11 +128,22 @@ def main():
                         compute_cost,
 
                     "currency":
-                        config["currency"],
+                        pricing["currency"],
+
+                    "pricing_source":
+                        pricing["source_name"],
+
+                    "pricing_source_type":
+                        pricing["source_type"],
+
+                    "pricing_checked_date":
+                        pricing["checked_date"],
                 }
             )
 
-    result = pd.DataFrame(rows)
+    result = pd.DataFrame(
+        rows
+    )
 
     # ========================================================
     # DIFFERENCE VS CLASSICAL
@@ -159,36 +164,43 @@ def main():
         group = group.copy()
 
         classical = group[
-            group["scenario"] == "Classical"
+            group["scenario"]
+            == "Classical"
         ]
 
         if len(classical) != 1:
             raise RuntimeError(
-                "Expected exactly one Classical row for "
-                f"{provider}, {handshakes:,} handshakes."
+                "Expected exactly one "
+                "Classical baseline for "
+                f"{provider}, "
+                f"{handshakes:,} handshakes."
             )
 
-        baseline = classical.iloc[0]
+        baseline = (
+            classical.iloc[0]
+        )
 
         group[
             "extra_compute_cost_vs_classical"
         ] = (
-            group["compute_cost_month"]
-            - baseline["compute_cost_month"]
+            group[
+                "compute_cost_month"
+            ]
+            - baseline[
+                "compute_cost_month"
+            ]
         )
 
-        frames.append(group)
+        frames.append(
+            group
+        )
 
     result = pd.concat(
         frames,
         ignore_index=True,
     )
 
-    # ========================================================
-    # SAVE
-    # ========================================================
-
-    OUTPUT_DIR.mkdir(
+    OUTPUT_FILE.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
@@ -198,12 +210,10 @@ def main():
         index=False,
     )
 
-    # ========================================================
-    # DISPLAY 100M CASE
-    # ========================================================
-
     focus = result[
-        result["handshakes_per_month"]
+        result[
+            "handshakes_per_month"
+        ]
         == 100_000_000
     ].copy()
 
@@ -215,47 +225,50 @@ def main():
         "price_per_vcpu_hour",
         "compute_cost_month",
         "extra_compute_cost_vs_classical",
+        "pricing_checked_date",
     ]
 
-    print("=" * 125)
+    print("=" * 135)
     print(
-        " PROVIDER COMPUTE COST — "
+        " PROVIDER COMPUTE COST - "
         "100 MILLION HANDSHAKES / MONTH"
     )
-    print("=" * 125)
+    print("=" * 135)
 
     print(
-        focus[display_columns]
+        focus[
+            display_columns
+        ]
         .round(4)
-        .to_string(index=False)
+        .to_string(
+            index=False
+        )
     )
 
     print()
     print("MODEL:")
     print(
-        "- Only server-side cryptographic CPU is charged."
+        "- Only server-side cryptographic "
+        "CPU is charged."
     )
     print(
-        "- Client-side computation is excluded from the "
-        "cloud operator cost."
+        "- CPU-hours are converted using "
+        "reference USD/vCPU-hour rates."
     )
     print(
-        "- Equivalent CPU-hours are multiplied by an "
-        "estimated USD/vCPU-hour rate."
+        "- This is a simplified resource "
+        "cost model, not complete VM billing."
     )
     print(
-        "- This is a simplified resource-cost model, not "
-        "full VM billing."
-    )
-    print(
-        "- ML-KEM-768 is a conceptual PQ-only baseline."
-    )
-    print(
-        "- X25519MLKEM768 follows the RFC 10024 role model."
+        "- Pricing assumptions are loaded "
+        "from cloud_pricing.csv."
     )
 
     print()
-    print(f"Results saved to: {OUTPUT_FILE}")
+    print(
+        f"Results saved to: "
+        f"{OUTPUT_FILE}"
+    )
 
 
 if __name__ == "__main__":

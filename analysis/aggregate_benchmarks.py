@@ -2,18 +2,21 @@ from pathlib import Path
 
 import pandas as pd
 
+from analysis.tls_key_establishment_model import (
+    main as build_tls_key_establishment_model,
+)
+
 
 RUNS_DIR = Path("results/raw/runs")
 OUTPUT_DIR = Path("results/raw/aggregated")
 
 OUTPUT_DIR.mkdir(
     parents=True,
-    exist_ok=True
+    exist_ok=True,
 )
 
 
 def load_runs(filename):
-
     frames = []
 
     run_dirs = sorted(
@@ -21,7 +24,6 @@ def load_runs(filename):
     )
 
     for run_dir in run_dirs:
-
         file_path = run_dir / filename
 
         if not file_path.exists():
@@ -44,55 +46,57 @@ def load_runs(filename):
 
     return pd.concat(
         frames,
-        ignore_index=True
+        ignore_index=True,
     )
 
 
 def aggregate(df, group_columns):
-
     result = (
         df.groupby(group_columns)
         .agg(
-            runs=("run_id", "count"),
+            runs=(
+                "run_id",
+                "count",
+            ),
 
             mean_ms=(
                 "mean_ms",
-                "mean"
+                "mean",
             ),
 
             run_mean_std_ms=(
                 "mean_ms",
-                "std"
+                "std",
             ),
 
             median_ms=(
                 "median_ms",
-                "mean"
+                "mean",
             ),
 
             p95_ms=(
                 "p95_ms",
-                "mean"
+                "mean",
             ),
 
             p99_ms=(
                 "p99_ms",
-                "mean"
+                "mean",
             ),
 
             ops_per_second=(
                 "ops_per_second",
-                "mean"
+                "mean",
             ),
 
             min_run_mean_ms=(
                 "mean_ms",
-                "min"
+                "min",
             ),
 
             max_run_mean_ms=(
                 "mean_ms",
-                "max"
+                "max",
             ),
         )
         .reset_index()
@@ -110,7 +114,6 @@ def aggregate(df, group_columns):
 
 
 def aggregate_mlkem():
-
     raw = load_runs(
         "ml_kem_benchmark.csv"
     )
@@ -129,8 +132,7 @@ def aggregate_mlkem():
                 "algorithm",
                 "operation",
             ]
-        )
-        [
+        )[
             [
                 "public_key_bytes",
                 "secret_key_bytes",
@@ -160,7 +162,6 @@ def aggregate_mlkem():
 
 
 def aggregate_x25519():
-
     raw = load_runs(
         "x25519_benchmark.csv"
     )
@@ -179,8 +180,7 @@ def aggregate_x25519():
                 "algorithm",
                 "operation",
             ]
-        )
-        [
+        )[
             [
                 "public_key_bytes",
                 "secret_key_bytes",
@@ -208,6 +208,15 @@ def aggregate_x25519():
 
 
 def aggregate_hybrid():
+    """
+    Aggregate the full Python X25519MLKEM768 benchmark.
+
+    This result is diagnostic only.
+
+    The canonical key-establishment comparison is generated
+    separately by tls_key_establishment_model.py from the
+    primitive X25519 and ML-KEM measurements.
+    """
 
     raw = load_runs(
         "hybrid_benchmark.csv"
@@ -221,33 +230,47 @@ def aggregate_hybrid():
         ],
     )
 
-    metadata = (
-        raw.groupby(
-            [
+    metadata_columns = [
+        "client_share_bytes",
+        "server_share_bytes",
+        "transmitted_bytes",
+        "shared_secret_bytes",
+        "benchmark_scope",
+    ]
+
+    # Be tolerant of older raw files while the user is
+    # regenerating the benchmark suite.
+    available_metadata = [
+        column
+        for column in metadata_columns
+        if column in raw.columns
+    ]
+
+    if available_metadata:
+        metadata = (
+            raw.groupby(
+                [
+                    "algorithm",
+                    "operation",
+                ]
+            )[
+                available_metadata
+            ]
+            .first()
+            .reset_index()
+        )
+
+        aggregated = aggregated.merge(
+            metadata,
+            on=[
                 "algorithm",
                 "operation",
-            ]
+            ],
         )
-        [
-            [
-                "transmitted_bytes",
-                "shared_secret_bytes",
-            ]
-        ]
-        .first()
-        .reset_index()
-    )
-
-    aggregated = aggregated.merge(
-        metadata,
-        on=[
-            "algorithm",
-            "operation",
-        ],
-    )
 
     aggregated.to_csv(
-        OUTPUT_DIR / "hybrid_end_to_end.csv",
+        OUTPUT_DIR
+        / "hybrid_end_to_end.csv",
         index=False,
     )
 
@@ -255,6 +278,13 @@ def aggregate_hybrid():
 
 
 def aggregate_hkdf():
+    """
+    HKDF remains independently benchmarked because it is
+    relevant to TLS and other cryptographic protocols.
+
+    It is NOT added as a hybrid-specific cost in the
+    X25519MLKEM768 comparison.
+    """
 
     raw = load_runs(
         "hkdf_benchmark.csv"
@@ -276,120 +306,29 @@ def aggregate_hkdf():
     return aggregated
 
 
-def build_component_model(
-    mlkem,
-    x25519,
-    hkdf,
-):
+def remove_legacy_component_model():
+    """
+    Remove the obsolete pre-RFC component model if it exists.
 
-    x_keygen = x25519[
-        x25519["operation"] == "keygen"
-    ].iloc[0]["mean_ms"]
+    That model incorrectly added two HKDF operations as a
+    hybrid-specific cost.
+    """
 
-    x_exchange = x25519[
-        x25519["operation"] == "exchange"
-    ].iloc[0]["mean_ms"]
-
-    x25519_total = (
-        2 * x_keygen
-        + 2 * x_exchange
-    )
-
-    mlkem_768 = mlkem[
-        mlkem["algorithm"] == "ML-KEM-768"
-    ]
-
-    mlkem_keygen = mlkem_768[
-        mlkem_768["operation"] == "keygen"
-    ].iloc[0]["mean_ms"]
-
-    mlkem_encaps = mlkem_768[
-        mlkem_768["operation"] == "encaps"
-    ].iloc[0]["mean_ms"]
-
-    mlkem_decaps = mlkem_768[
-        mlkem_768["operation"] == "decaps"
-    ].iloc[0]["mean_ms"]
-
-    mlkem_total = (
-        mlkem_keygen
-        + mlkem_encaps
-        + mlkem_decaps
-    )
-
-    hkdf_mean = hkdf.iloc[0]["mean_ms"]
-
-    hybrid_component_model = (
-        x25519_total
-        + mlkem_total
-        + 2 * hkdf_mean
-    )
-
-    rows = [
-        {
-            "scenario": "Classical",
-            "algorithm": "X25519",
-            "crypto_work_ms":
-                x25519_total,
-            "transmitted_bytes":
-                64,
-        },
-
-        {
-            "scenario": "Post-Quantum",
-            "algorithm": "ML-KEM-768",
-            "crypto_work_ms":
-                mlkem_total,
-            "transmitted_bytes":
-                2272,
-        },
-
-        {
-            "scenario": "Hybrid",
-            "algorithm":
-                "X25519+ML-KEM-768",
-            "crypto_work_ms":
-                hybrid_component_model,
-            "transmitted_bytes":
-                2336,
-        },
-    ]
-
-    model = pd.DataFrame(rows)
-
-    baseline_ms = model.iloc[0][
-        "crypto_work_ms"
-    ]
-
-    baseline_bytes = model.iloc[0][
-        "transmitted_bytes"
-    ]
-
-    model[
-        "compute_ratio_vs_x25519"
-    ] = (
-        model["crypto_work_ms"]
-        / baseline_ms
-    )
-
-    model[
-        "traffic_ratio_vs_x25519"
-    ] = (
-        model["transmitted_bytes"]
-        / baseline_bytes
-    )
-
-    model.to_csv(
+    legacy_file = (
         OUTPUT_DIR
-        / "key_establishment_component_model.csv",
-        index=False,
+        / "key_establishment_component_model.csv"
     )
 
-    return model
+    if legacy_file.exists():
+        legacy_file.unlink()
+
+        print(
+            f"Removed obsolete result: "
+            f"{legacy_file}"
+        )
 
 
 def main():
-
     mlkem = aggregate_mlkem()
     x25519 = aggregate_x25519()
     hybrid_end_to_end = (
@@ -397,19 +336,13 @@ def main():
     )
     hkdf = aggregate_hkdf()
 
-    component_model = (
-        build_component_model(
-            mlkem,
-            x25519,
-            hkdf,
-        )
-    )
+    remove_legacy_component_model()
 
-    print("=" * 90)
+    print("=" * 100)
     print(
-        " AGGREGATED BENCHMARK RESULTS"
+        " AGGREGATED PRIMITIVE BENCHMARK RESULTS"
     )
-    print("=" * 90)
+    print("=" * 100)
 
     print("\nML-KEM\n")
 
@@ -449,7 +382,7 @@ def main():
         )
     )
 
-    print("\nHKDF\n")
+    print("\nHKDF-SHA256 — independent benchmark\n")
 
     print(
         hkdf[
@@ -469,13 +402,15 @@ def main():
     )
 
     print(
-        "\nHybrid end-to-end diagnostic\n"
+        "\nX25519MLKEM768 full-establishment "
+        "diagnostic\n"
     )
 
     print(
         hybrid_end_to_end[
             [
                 "algorithm",
+                "operation",
                 "runs",
                 "mean_ms",
                 "run_mean_std_ms",
@@ -488,20 +423,48 @@ def main():
         )
     )
 
+    print()
     print(
-        "\nComponent-based comparison\n"
+        "NOTE: The end-to-end hybrid measurement above is "
+        "diagnostic only."
+    )
+    print(
+        "It includes Python wrapper/object-creation overhead "
+        "and is not used as the canonical TLS performance "
+        "comparison."
+    )
+
+    print()
+    print("=" * 100)
+    print(
+        " BUILDING CANONICAL TLS KEY-ESTABLISHMENT MODEL"
+    )
+    print("=" * 100)
+    print()
+
+    # The canonical model is generated by the dedicated
+    # RFC 10024 analysis module.
+    build_tls_key_establishment_model()
+
+    print()
+    print("=" * 100)
+    print(" AGGREGATION COMPLETE")
+    print("=" * 100)
+
+    print(
+        "\nCanonical key-establishment result:"
+        "\nresults/raw/aggregated/"
+        "tls_key_establishment_model.csv"
     )
 
     print(
-        component_model.to_string(
-            index=False,
-            float_format=lambda x:
-                f"{x:.6f}",
-        )
+        "\nDiagnostic hybrid result:"
+        "\nresults/raw/aggregated/"
+        "hybrid_end_to_end.csv"
     )
 
     print(
-        "\nAggregated results saved to:"
+        "\nPrimitive results:"
         "\nresults/raw/aggregated/"
     )
 

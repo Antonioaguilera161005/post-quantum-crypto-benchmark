@@ -2,42 +2,85 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.ticker import FuncFormatter
 
 
-AGGREGATED = Path("results/raw/aggregated")
-ECONOMIC = Path("results/economic")
+AGGREGATED_DIR = Path(
+    "results/raw/aggregated"
+)
 
-OUTPUT = Path("results/figures")
-OUTPUT.mkdir(parents=True, exist_ok=True)
+ECONOMIC_DIR = Path(
+    "results/economic"
+)
 
+OUTPUT_DIR = Path(
+    "results/figures"
+)
+
+OUTPUT_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+
+# ============================================================
+# HELPERS
+# ============================================================
 
 def save_plot(filename):
-    path = OUTPUT / filename
+    path = OUTPUT_DIR / filename
+
     plt.tight_layout()
+
     plt.savefig(
         path,
         dpi=300,
         bbox_inches="tight",
     )
+
     plt.close()
 
     print(f"Saved: {path}")
 
-def add_bar_labels(ax, decimals=2, suffix=""):
+
+def add_bar_labels(
+    ax,
+    decimals=2,
+    suffix="",
+):
+    """
+    Add numerical labels above every bar in a plot.
+    """
+
     for container in ax.containers:
+
         labels = []
 
         for bar in container:
+
             value = bar.get_height()
 
+            if pd.isna(value):
+                labels.append("")
+                continue
+
             if abs(value) >= 1_000_000:
-                label = f"{value / 1_000_000:.2f}M{suffix}"
+                label = (
+                    f"{value / 1_000_000:.2f}M"
+                    f"{suffix}"
+                )
 
             elif abs(value) >= 1_000:
-                label = f"{value / 1_000:.1f}k{suffix}"
+                label = (
+                    f"{value / 1_000:.1f}k"
+                    f"{suffix}"
+                )
 
             else:
-                label = f"{value:.{decimals}f}{suffix}"
+                label = (
+                    f"{value:.{decimals}f}"
+                    f"{suffix}"
+                )
 
             labels.append(label)
 
@@ -47,33 +90,53 @@ def add_bar_labels(ax, decimals=2, suffix=""):
             padding=3,
             fontsize=8,
         )
+
+
 # ============================================================
-# 1. KEY ESTABLISHMENT — COMPUTE
+# 1. KEY ESTABLISHMENT — TOTAL CRYPTO WORK
 # ============================================================
 
 def plot_key_establishment_compute():
 
     df = pd.read_csv(
-        AGGREGATED
-        / "key_establishment_component_model.csv"
+        AGGREGATED_DIR
+        / "tls_key_establishment_model.csv"
     )
 
-    plt.figure(figsize=(8, 5))
+    order = [
+        "X25519",
+        "ML-KEM-768",
+        "X25519MLKEM768",
+    ]
 
-    plt.bar(
+    df = (
+        df.set_index("algorithm")
+        .reindex(order)
+        .reset_index()
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(9, 5.5)
+    )
+
+    ax.bar(
         df["algorithm"],
-        df["crypto_work_ms"],
+        df["total_crypto_ms"],
     )
 
-    plt.ylabel(
-        "Cryptographic work per establishment (ms)"
+    ax.set_ylabel(
+        "Total cryptographic work (ms)"
     )
 
-    plt.title(
-        "Classical vs Post-Quantum Key Establishment"
+    ax.set_title(
+        "Key Establishment Cryptographic Work"
     )
 
-    plt.xticks(rotation=15)
+    add_bar_labels(
+        ax,
+        decimals=3,
+        suffix=" ms",
+    )
 
     save_plot(
         "key_establishment_compute.png"
@@ -81,32 +144,106 @@ def plot_key_establishment_compute():
 
 
 # ============================================================
-# 2. KEY ESTABLISHMENT — TRANSMITTED BYTES
+# 2. KEY ESTABLISHMENT — SERVER CRYPTO WORK
+# ============================================================
+
+def plot_key_establishment_server_compute():
+
+    df = pd.read_csv(
+        AGGREGATED_DIR
+        / "tls_key_establishment_model.csv"
+    )
+
+    order = [
+        "X25519",
+        "ML-KEM-768",
+        "X25519MLKEM768",
+    ]
+
+    df = (
+        df.set_index("algorithm")
+        .reindex(order)
+        .reset_index()
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(9, 5.5)
+    )
+
+    ax.bar(
+        df["algorithm"],
+        df["server_crypto_ms"],
+    )
+
+    ax.set_ylabel(
+        "Server cryptographic work (ms)"
+    )
+
+    ax.set_title(
+        "Server-Side Key Establishment Cost"
+    )
+
+    add_bar_labels(
+        ax,
+        decimals=3,
+        suffix=" ms",
+    )
+
+    save_plot(
+        "key_establishment_server_compute.png"
+    )
+
+
+# ============================================================
+# 3. KEY ESTABLISHMENT — COMMUNICATION
 # ============================================================
 
 def plot_key_establishment_size():
 
     df = pd.read_csv(
-        AGGREGATED
-        / "key_establishment_component_model.csv"
+        AGGREGATED_DIR
+        / "tls_key_establishment_model.csv"
     )
 
-    plt.figure(figsize=(8, 5))
+    order = [
+        "X25519",
+        "ML-KEM-768",
+        "X25519MLKEM768",
+    ]
 
-    plt.bar(
+    df = (
+        df.set_index("algorithm")
+        .reindex(order)
+        .reset_index()
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(9, 5.5)
+    )
+
+    ax.bar(
         df["algorithm"],
-        df["transmitted_bytes"],
+        df["total_transmitted_bytes"],
     )
 
-    plt.ylabel(
+    ax.set_ylabel(
         "Cryptographic material transmitted (bytes)"
     )
 
-    plt.title(
+    ax.set_title(
         "Key Establishment Communication Overhead"
     )
 
-    plt.xticks(rotation=15)
+    for container in ax.containers:
+        ax.bar_label(
+            container,
+            labels=[
+                f"{int(bar.get_height())} B"
+                for bar in container
+            ],
+            padding=3,
+            fontsize=9,
+        )
 
     save_plot(
         "key_establishment_size.png"
@@ -114,50 +251,69 @@ def plot_key_establishment_size():
 
 
 # ============================================================
-# 3. SIGNATURE PERFORMANCE
+# 4. SIGNATURE PERFORMANCE
 # ============================================================
 
 def plot_signature_performance():
 
     df = pd.read_csv(
-        AGGREGATED
+        AGGREGATED_DIR
         / "signature_comparison.csv"
     )
 
-    algorithms = df["algorithm"]
+    order = [
+        "ECDSA-P256",
+        "ML-DSA-44",
+        "ML-DSA-65",
+        "ML-DSA-87",
+    ]
 
-    x = range(len(algorithms))
-
-    width = 0.35
-
-    plt.figure(figsize=(9, 5))
-
-    plt.bar(
-        [i - width / 2 for i in x],
-        df["sign_ms"],
-        width=width,
-        label="Sign",
+    df = (
+        df.set_index("algorithm")
+        .reindex(order)
+        .reset_index()
     )
 
-    plt.bar(
-        [i + width / 2 for i in x],
-        df["verify_ms"],
-        width=width,
-        label="Verify",
+    plot_df = df.set_index(
+        "algorithm"
+    )[
+        [
+            "sign_ms",
+            "verify_ms",
+        ]
+    ]
+
+    ax = plot_df.plot(
+        kind="bar",
+        figsize=(10, 5.5),
     )
 
-    plt.xticks(
-        list(x),
-        algorithms,
+    ax.set_ylabel(
+        "Execution time (ms)"
     )
 
-    plt.ylabel("Execution time (ms)")
+    ax.set_xlabel("")
 
-    plt.title(
+    ax.set_title(
         "Digital Signature Performance"
     )
 
-    plt.legend()
+    ax.legend(
+        [
+            "Sign",
+            "Verify",
+        ]
+    )
+
+    plt.xticks(
+        rotation=0
+    )
+
+    add_bar_labels(
+        ax,
+        decimals=3,
+        suffix="",
+    )
 
     save_plot(
         "signature_performance.png"
@@ -165,27 +321,50 @@ def plot_signature_performance():
 
 
 # ============================================================
-# 4. SIGNATURE SIZE
+# 5. SIGNATURE SIZE
 # ============================================================
 
 def plot_signature_size():
 
     df = pd.read_csv(
-        AGGREGATED
+        AGGREGATED_DIR
         / "signature_comparison.csv"
     )
 
-    plt.figure(figsize=(8, 5))
+    order = [
+        "ECDSA-P256",
+        "ML-DSA-44",
+        "ML-DSA-65",
+        "ML-DSA-87",
+    ]
 
-    plt.bar(
+    df = (
+        df.set_index("algorithm")
+        .reindex(order)
+        .reset_index()
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(9, 5.5)
+    )
+
+    ax.bar(
         df["algorithm"],
         df["signature_bytes"],
     )
 
-    plt.ylabel("Signature size (bytes)")
+    ax.set_ylabel(
+        "Signature size (bytes)"
+    )
 
-    plt.title(
-        "ECDSA vs ML-DSA Signature Size"
+    ax.set_title(
+        "Digital Signature Size"
+    )
+
+    add_bar_labels(
+        ax,
+        decimals=0,
+        suffix=" B",
     )
 
     save_plot(
@@ -194,27 +373,50 @@ def plot_signature_size():
 
 
 # ============================================================
-# 5. PUBLIC KEY SIZE — SIGNATURE SCHEMES
+# 6. PUBLIC KEY SIZE
 # ============================================================
 
-def plot_signature_public_keys():
+def plot_signature_public_key_size():
 
     df = pd.read_csv(
-        AGGREGATED
+        AGGREGATED_DIR
         / "signature_comparison.csv"
     )
 
-    plt.figure(figsize=(8, 5))
+    order = [
+        "ECDSA-P256",
+        "ML-DSA-44",
+        "ML-DSA-65",
+        "ML-DSA-87",
+    ]
 
-    plt.bar(
+    df = (
+        df.set_index("algorithm")
+        .reindex(order)
+        .reset_index()
+    )
+
+    fig, ax = plt.subplots(
+        figsize=(9, 5.5)
+    )
+
+    ax.bar(
         df["algorithm"],
         df["public_key_bytes"],
     )
 
-    plt.ylabel("Public key size (bytes)")
+    ax.set_ylabel(
+        "Public key size (bytes)"
+    )
 
-    plt.title(
+    ax.set_title(
         "Digital Signature Public-Key Size"
+    )
+
+    add_bar_labels(
+        ax,
+        decimals=0,
+        suffix=" B",
     )
 
     save_plot(
@@ -223,19 +425,89 @@ def plot_signature_public_keys():
 
 
 # ============================================================
-# 6. SIGNATURE CLOUD COST
+# 7. KEY ESTABLISHMENT CLOUD COST
 # ============================================================
 
-def plot_signature_cost():
+def plot_key_establishment_cloud_cost():
 
     df = pd.read_csv(
-        ECONOMIC
+        ECONOMIC_DIR
+        / "total_operational_cost.csv"
+    )
+
+    df = df[
+        df["handshakes_per_month"]
+        == 100_000_000
+    ].copy()
+
+    algorithm_order = [
+        "X25519",
+        "ML-KEM-768",
+        "X25519MLKEM768",
+    ]
+
+    pivot = df.pivot(
+        index="algorithm",
+        columns="provider",
+        values="extra_operational_cost_vs_classical",
+    )
+
+    pivot = pivot.reindex(
+        algorithm_order
+    )
+
+    ax = pivot.plot(
+        kind="bar",
+        figsize=(10, 5.5),
+    )
+
+    ax.set_ylabel(
+        "Additional cost vs X25519 (USD/month)"
+    )
+
+    ax.set_xlabel("")
+
+    ax.set_title(
+        "Key Establishment Operational Overhead\n"
+        "100 Million Handshakes / Month"
+    )
+
+    plt.xticks(
+        rotation=0
+    )
+
+    add_bar_labels(
+        ax,
+        decimals=2,
+        suffix="",
+    )
+
+    save_plot(
+        "key_establishment_cloud_cost.png"
+    )
+
+
+# ============================================================
+# 8. SIGNATURE CLOUD COST
+# ============================================================
+
+def plot_signature_cloud_cost():
+
+    df = pd.read_csv(
+        ECONOMIC_DIR
         / "signature_cloud_cost.csv"
     )
 
     df = df[
         df["signed_operations_per_month"]
         == 100_000_000
+    ].copy()
+
+    algorithm_order = [
+        "ECDSA-P256",
+        "ML-DSA-44",
+        "ML-DSA-65",
+        "ML-DSA-87",
     ]
 
     pivot = df.pivot(
@@ -244,23 +516,35 @@ def plot_signature_cost():
         values="extra_cost_vs_ecdsa_month",
     )
 
-    pivot.plot(
-        kind="bar",
-        figsize=(9, 5),
+    pivot = pivot.reindex(
+        algorithm_order
     )
 
-    plt.ylabel(
+    ax = pivot.plot(
+        kind="bar",
+        figsize=(10, 5.5),
+    )
+
+    ax.set_ylabel(
         "Additional cost vs ECDSA (USD/month)"
     )
 
-    plt.xlabel("")
+    ax.set_xlabel("")
 
-    plt.title(
-        "PQC Signature Operational Overhead\n"
+    ax.set_title(
+        "Digital Signature Operational Overhead\n"
         "100 Million Signed Operations / Month"
     )
 
-    plt.xticks(rotation=0)
+    plt.xticks(
+        rotation=0
+    )
+
+    add_bar_labels(
+        ax,
+        decimals=2,
+        suffix="",
+    )
 
     save_plot(
         "signature_cloud_cost.png"
@@ -268,58 +552,13 @@ def plot_signature_cost():
 
 
 # ============================================================
-# 7. KEY ESTABLISHMENT CLOUD COST
-# ============================================================
-
-def plot_key_establishment_cost():
-
-    df = pd.read_csv(
-        ECONOMIC
-        / "total_operational_cost.csv"
-    )
-
-    df = df[
-        df["handshakes_per_month"]
-        == 100_000_000
-    ]
-
-    pivot = df.pivot(
-        index="algorithm",
-        columns="provider_family",
-        values="extra_operational_cost_vs_classical",
-    )
-
-    pivot.plot(
-        kind="bar",
-        figsize=(9, 5),
-    )
-
-    plt.ylabel(
-        "Additional cost vs X25519 (USD/month)"
-    )
-
-    plt.xlabel("")
-
-    plt.title(
-        "PQC Key Establishment Operational Overhead\n"
-        "100 Million Handshakes / Month"
-    )
-
-    plt.xticks(rotation=10)
-
-    save_plot(
-        "key_establishment_cloud_cost.png"
-    )
-
-
-# ============================================================
-# 8. MIGRATION SENSITIVITY
+# 9. MIGRATION SENSITIVITY
 # ============================================================
 
 def plot_migration_sensitivity():
 
     df = pd.read_csv(
-        ECONOMIC
+        ECONOMIC_DIR
         / "migration_sensitivity.csv"
     )
 
@@ -329,81 +568,138 @@ def plot_migration_sensitivity():
         values="total_migration_cost",
     )
 
-    order = [
+    scenario_order = [
         "Startup",
         "Mid-size",
         "Enterprise",
     ]
 
-    columns = [
-        c for c in
-        ["Low", "Central", "High"]
-        if c in pivot.columns
+    sensitivity_order = [
+        "Low",
+        "Central",
+        "High",
     ]
 
-    pivot = pivot.reindex(order)
-    pivot = pivot[columns]
+    pivot = pivot.reindex(
+        scenario_order
+    )
+
+    pivot = pivot[
+        sensitivity_order
+    ]
 
     ax = pivot.plot(
         kind="bar",
         figsize=(10, 6),
     )
 
-    plt.ylabel(
-        "Modelled migration cost (€)"
+    ax.set_ylabel(
+        "Modelled migration cost (scenario assumptions)"
     )
 
-    plt.xlabel("")
+    ax.set_xlabel("")
 
-    plt.title(
-        "PQC Migration Cost Sensitivity"
+    ax.set_title(
+        "Hypothetical PQC Migration Cost Sensitivity"
     )
 
-    plt.xticks(rotation=0)
-
-    plt.legend(
-        title="Scenario"
+    ax.legend(
+        title="Sensitivity case"
     )
 
-    # Format Y axis
+    plt.xticks(
+        rotation=0
+    )
+
     ax.yaxis.set_major_formatter(
-        plt.FuncFormatter(
+        FuncFormatter(
             lambda value, _:
-                f"€{value / 1_000_000:.1f}M"
-                if value >= 1_000_000
-                else f"€{value / 1_000:.0f}k"
+                (
+                    f"{value / 1_000_000:.1f}M"
+                    if abs(value) >= 1_000_000
+                    else
+                    f"{value / 1_000:.0f}k"
+                )
         )
     )
 
-    # Values above bars
-    for container in ax.containers:
-
-        labels = []
-
-        for bar in container:
-
-            value = bar.get_height()
-
-            if value >= 1_000_000:
-                label = (
-                    f"€{value / 1_000_000:.2f}M"
-                )
-            else:
-                label = (
-                    f"€{value / 1_000:.1f}k"
-                )
-
-            labels.append(label)
-
-        ax.bar_label(
-            container,
-            labels=labels,
-            padding=3,
-            fontsize=8,
-        )
+    add_bar_labels(
+        ax,
+        decimals=0,
+    )
 
     save_plot(
         "migration_sensitivity.png"
+    )
+
+
+# ============================================================
+# 10. SERVER COST COMPOSITION — HYBRID
+# ============================================================
+
+def plot_hybrid_cost_composition():
+
+    df = pd.read_csv(
+        ECONOMIC_DIR
+        / "total_operational_cost.csv"
+    )
+
+    df = df[
+        (
+            df["handshakes_per_month"]
+            == 100_000_000
+        )
+        &
+        (
+            df["algorithm"]
+            == "X25519MLKEM768"
+        )
+    ].copy()
+
+    df = df.set_index(
+        "provider"
+    )
+
+    composition = df[
+        [
+            "compute_cost_month",
+            "marginal_network_cost_month",
+        ]
+    ]
+
+    composition.columns = [
+        "Compute",
+        "Network",
+    ]
+
+    ax = composition.plot(
+        kind="bar",
+        stacked=True,
+        figsize=(8, 5.5),
+    )
+
+    ax.set_ylabel(
+        "Operational cost (USD/month)"
+    )
+
+    ax.set_xlabel("")
+
+    ax.set_title(
+        "X25519MLKEM768 Cost Composition\n"
+        "100 Million Handshakes / Month"
+    )
+
+    plt.xticks(
+        rotation=0
+    )
+
+    add_bar_labels(
+        ax,
+        decimals=2,
+    )
+
+    save_plot(
+        "hybrid_cost_composition.png"
     )
 
 
@@ -413,24 +709,36 @@ def plot_migration_sensitivity():
 
 def main():
 
-    print("=" * 60)
-    print(" GENERATING PROJECT FIGURES")
-    print("=" * 60)
+    print("=" * 70)
+    print(
+        " GENERATING FINAL PROJECT FIGURES"
+    )
+    print("=" * 70)
 
     plot_key_establishment_compute()
+    plot_key_establishment_server_compute()
     plot_key_establishment_size()
 
     plot_signature_performance()
     plot_signature_size()
-    plot_signature_public_keys()
+    plot_signature_public_key_size()
 
-    plot_signature_cost()
-    plot_key_establishment_cost()
+    plot_key_establishment_cloud_cost()
+    plot_signature_cloud_cost()
 
     plot_migration_sensitivity()
 
-    print("\nAll figures generated.")
-    print(f"Output directory: {OUTPUT}")
+    plot_hybrid_cost_composition()
+
+    print()
+    print("=" * 70)
+    print(" FIGURE GENERATION COMPLETE")
+    print("=" * 70)
+
+    print(
+        f"\nOutput directory: "
+        f"{OUTPUT_DIR}"
+    )
 
 
 if __name__ == "__main__":

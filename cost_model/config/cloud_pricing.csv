@@ -1,0 +1,6 @@
+provider,service,region,product,price,currency,billing_unit,free_units_month,vcpus,source_name,source_type,checked_date
+AWS,compute,eu-south-2,m7i.large,0.1124,USD,vm_hour,0,2,DoiT Compute AWS catalog,third_party_catalog,2026-10-04
+Azure,compute,spaincentral,Standard_D2s_v5,0.1070,USD,vm_hour,0,2,Spare Cores Azure catalog,third_party_catalog,2026-10-04
+GCP,compute,europe-southwest1,e2-standard-2,0.07908,USD,vm_hour,0,2,compute.info cloud VM catalog,third_party_catalog,2026-10-04
+Azure,network,Europe,Premium Global Network internet egress,0.087,USD,GB,100,,Microsoft Azure Bandwidth Pricing,official_provider_page,2026-10-04
+GCP,network,europe-southwest1,Standard Tier internet data transfer out,0.085,USD,GiB,200,,Google Cloud Network Service Tiers Pricing,official_provider_page,2026-10-04
