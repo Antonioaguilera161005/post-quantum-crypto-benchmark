@@ -1,117 +1,200 @@
 import oqs
 
 from cryptography.hazmat.primitives.asymmetric import x25519
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
 
 
 class X25519MLKEM768:
     """
-    Hybrid key establishment using:
+    Experimental implementation of the X25519MLKEM768
+    hybrid key-agreement structure defined by RFC 10024.
 
-        X25519
-        +
-        ML-KEM-768
+    This models the cryptographic operations and byte layout
+    of the TLS 1.3 supported group.
 
-    Both shared secrets are combined using HKDF-SHA256.
+    It is NOT a complete TLS implementation.
     """
 
     MLKEM_ALGORITHM = "ML-KEM-768"
 
+    MLKEM_PUBLIC_KEY_BYTES = 1184
+    MLKEM_CIPHERTEXT_BYTES = 1088
+    X25519_PUBLIC_KEY_BYTES = 32
+
+    CLIENT_SHARE_BYTES = (
+        MLKEM_PUBLIC_KEY_BYTES
+        + X25519_PUBLIC_KEY_BYTES
+    )
+
+    SERVER_SHARE_BYTES = (
+        MLKEM_CIPHERTEXT_BYTES
+        + X25519_PUBLIC_KEY_BYTES
+    )
+
     @staticmethod
     def combine_secrets(
-        x25519_secret: bytes,
         mlkem_secret: bytes,
+        x25519_secret: bytes,
     ) -> bytes:
+        """
+        RFC 10024 X25519MLKEM768 shared secret:
 
-        combined = x25519_secret + mlkem_secret
+            ML-KEM shared secret || X25519 shared secret
 
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=None,
-            info=b"pqc-benchmark-hybrid-x25519-mlkem768",
-        )
+        32 bytes + 32 bytes = 64 bytes.
+        """
 
-        return hkdf.derive(combined)
+        return mlkem_secret + x25519_secret
 
     def establish(self):
 
-        # ==========================================================
-        # X25519
-        # ==========================================================
+        # ====================================================
+        # CLIENT — X25519
+        # ====================================================
 
-        alice_x_private = x25519.X25519PrivateKey.generate()
-        alice_x_public = alice_x_private.public_key()
-
-        bob_x_private = x25519.X25519PrivateKey.generate()
-        bob_x_public = bob_x_private.public_key()
-
-        alice_x_secret = alice_x_private.exchange(
-            bob_x_public
+        client_x_private = (
+            x25519.X25519PrivateKey.generate()
         )
 
-        bob_x_secret = bob_x_private.exchange(
-            alice_x_public
+        client_x_public = (
+            client_x_private.public_key()
         )
 
-        assert alice_x_secret == bob_x_secret
+        # ====================================================
+        # SERVER — X25519
+        # ====================================================
 
-        # ==========================================================
-        # ML-KEM-768
-        # ==========================================================
+        server_x_private = (
+            x25519.X25519PrivateKey.generate()
+        )
+
+        server_x_public = (
+            server_x_private.public_key()
+        )
+
+        # Both sides calculate X25519 shared secret.
+
+        client_x_secret = (
+            client_x_private.exchange(
+                server_x_public
+            )
+        )
+
+        server_x_secret = (
+            server_x_private.exchange(
+                client_x_public
+            )
+        )
+
+        assert (
+            client_x_secret
+            == server_x_secret
+        )
+
+        # ====================================================
+        # CLIENT — ML-KEM-768 KEY GENERATION
+        # ====================================================
 
         with oqs.KeyEncapsulation(
             self.MLKEM_ALGORITHM
-        ) as bob_kem:
+        ) as client_kem:
 
-            bob_mlkem_public = bob_kem.generate_keypair()
+            client_mlkem_public = (
+                client_kem.generate_keypair()
+            )
+
+            # ================================================
+            # SERVER — ML-KEM ENCAPSULATION
+            # ================================================
 
             with oqs.KeyEncapsulation(
                 self.MLKEM_ALGORITHM
-            ) as alice_kem:
+            ) as server_kem:
 
-                ciphertext, alice_mlkem_secret = (
-                    alice_kem.encap_secret(
-                        bob_mlkem_public
-                    )
+                (
+                    ciphertext,
+                    server_mlkem_secret,
+                ) = server_kem.encap_secret(
+                    client_mlkem_public
                 )
 
-            bob_mlkem_secret = bob_kem.decap_secret(
-                ciphertext
+            # ================================================
+            # CLIENT — ML-KEM DECAPSULATION
+            # ================================================
+
+            client_mlkem_secret = (
+                client_kem.decap_secret(
+                    ciphertext
+                )
             )
 
-        assert alice_mlkem_secret == bob_mlkem_secret
-
-        # ==========================================================
-        # HYBRID COMBINATION
-        # ==========================================================
-
-        alice_hybrid = self.combine_secrets(
-            alice_x_secret,
-            alice_mlkem_secret,
+        assert (
+            client_mlkem_secret
+            == server_mlkem_secret
         )
 
-        bob_hybrid = self.combine_secrets(
-            bob_x_secret,
-            bob_mlkem_secret,
+        # ====================================================
+        # RFC 10024 HYBRID SHARED SECRET
+        # ====================================================
+
+        client_hybrid_secret = (
+            self.combine_secrets(
+                client_mlkem_secret,
+                client_x_secret,
+            )
         )
 
-        assert alice_hybrid == bob_hybrid
+        server_hybrid_secret = (
+            self.combine_secrets(
+                server_mlkem_secret,
+                server_x_secret,
+            )
+        )
+
+        assert (
+            client_hybrid_secret
+            == server_hybrid_secret
+        )
 
         return {
-            "alice_secret": alice_hybrid,
-            "bob_secret": bob_hybrid,
+            # Canonical names
+            "client_secret":
+                client_hybrid_secret,
 
-            "x25519_secret": alice_x_secret,
-            "mlkem_secret": alice_mlkem_secret,
+            "server_secret":
+                server_hybrid_secret,
 
+            "x25519_secret":
+                client_x_secret,
+
+            "mlkem_secret":
+                client_mlkem_secret,
+
+            # Sizes
             "mlkem_public_key_bytes":
-                len(bob_mlkem_public),
+                len(client_mlkem_public),
 
             "mlkem_ciphertext_bytes":
                 len(ciphertext),
 
             "x25519_public_key_bytes":
-                32,
+                self.X25519_PUBLIC_KEY_BYTES,
+
+            "client_share_bytes":
+                len(client_mlkem_public)
+                + self.X25519_PUBLIC_KEY_BYTES,
+
+            "server_share_bytes":
+                len(ciphertext)
+                + self.X25519_PUBLIC_KEY_BYTES,
+
+            "hybrid_secret_bytes":
+                len(client_hybrid_secret),
+
+            # Backwards-compatible aliases so older
+            # benchmark code does not immediately break.
+            "alice_secret":
+                client_hybrid_secret,
+
+            "bob_secret":
+                server_hybrid_secret,
         }

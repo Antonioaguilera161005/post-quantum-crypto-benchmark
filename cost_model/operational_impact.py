@@ -3,266 +3,131 @@ from pathlib import Path
 import pandas as pd
 
 
-AGGREGATED_DIR = Path(
-    "results/raw/aggregated"
+# ============================================================
+# PATHS
+# ============================================================
+
+INPUT_FILE = Path(
+    "results/raw/aggregated/tls_key_establishment_model.csv"
 )
 
-OUTPUT_DIR = Path(
-    "results/economic"
-)
-
-OUTPUT_DIR.mkdir(
-    parents=True,
-    exist_ok=True
-)
+OUTPUT_DIR = Path("results/economic")
+OUTPUT_FILE = OUTPUT_DIR / "operational_impact.csv"
 
 
-SCALES = [
+# ============================================================
+# WORKLOADS
+# ============================================================
+
+HANDSHAKE_VOLUMES = [
     1_000_000,
     100_000_000,
     1_000_000_000,
 ]
 
 
-def get_operation(
-    df,
-    algorithm,
-    operation,
-):
-    return df[
-        (df["algorithm"] == algorithm)
-        & (df["operation"] == operation)
-    ].iloc[0]["mean_ms"]
+def ms_to_cpu_hours(milliseconds_per_operation, operations):
+    """
+    Convert per-operation milliseconds into equivalent
+    serial CPU-hours.
+
+    This is NOT VM wall-clock time or a cloud bill by itself.
+    """
+    total_ms = milliseconds_per_operation * operations
+    total_seconds = total_ms / 1000
+    return total_seconds / 3600
+
+
+def bytes_to_decimal_gb(bytes_per_operation, operations):
+    """
+    Convert bytes to decimal GB.
+
+    1 GB = 1,000,000,000 bytes
+    """
+    total_bytes = bytes_per_operation * operations
+    return total_bytes / 1_000_000_000
 
 
 def main():
 
-    mlkem = pd.read_csv(
-        AGGREGATED_DIR / "ml_kem.csv"
-    )
+    if not INPUT_FILE.exists():
+        raise FileNotFoundError(
+            f"Missing canonical TLS model: {INPUT_FILE}"
+        )
 
-    x25519 = pd.read_csv(
-        AGGREGATED_DIR / "x25519.csv"
-    )
+    model = pd.read_csv(INPUT_FILE)
 
-    hkdf = pd.read_csv(
-        AGGREGATED_DIR / "hkdf.csv"
-    )
+    required_columns = {
+        "scenario",
+        "algorithm",
+        "client_crypto_ms",
+        "server_crypto_ms",
+        "total_crypto_ms",
+        "client_egress_bytes",
+        "server_egress_bytes",
+        "total_transmitted_bytes",
+    }
 
-    # ============================================================
-    # X25519
-    # ============================================================
+    missing = required_columns - set(model.columns)
 
-    x_keygen = get_operation(
-        x25519,
-        "X25519",
-        "keygen",
-    )
-
-    x_exchange = get_operation(
-        x25519,
-        "X25519",
-        "exchange",
-    )
-
-    x_server_ms = (
-        x_keygen
-        + x_exchange
-    )
-
-    x_client_ms = (
-        x_keygen
-        + x_exchange
-    )
-
-    # Server sends one 32-byte public key.
-    x_server_egress = 32
-
-    # Client sends one 32-byte public key.
-    x_client_egress = 32
-
-    # ============================================================
-    # ML-KEM-768
-    # ============================================================
-
-    kem_keygen = get_operation(
-        mlkem,
-        "ML-KEM-768",
-        "keygen",
-    )
-
-    kem_encaps = get_operation(
-        mlkem,
-        "ML-KEM-768",
-        "encaps",
-    )
-
-    kem_decaps = get_operation(
-        mlkem,
-        "ML-KEM-768",
-        "decaps",
-    )
-
-    # In our simplified model:
-    #
-    # Server:
-    #   KeyGen + Decaps
-    #
-    # Client:
-    #   Encaps
-
-    kem_server_ms = (
-        kem_keygen
-        + kem_decaps
-    )
-
-    kem_client_ms = kem_encaps
-
-    # Server sends ML-KEM public key.
-    kem_server_egress = 1184
-
-    # Client sends ciphertext.
-    kem_client_egress = 1088
-
-    # ============================================================
-    # HKDF
-    # ============================================================
-
-    hkdf_ms = get_operation(
-        hkdf,
-        "HKDF-SHA256",
-        "derive",
-    )
-
-    # ============================================================
-    # HYBRID
-    # ============================================================
-
-    hybrid_server_ms = (
-        x_server_ms
-        + kem_server_ms
-        + hkdf_ms
-    )
-
-    hybrid_client_ms = (
-        x_client_ms
-        + kem_client_ms
-        + hkdf_ms
-    )
-
-    hybrid_server_egress = (
-        x_server_egress
-        + kem_server_egress
-    )
-
-    hybrid_client_egress = (
-        x_client_egress
-        + kem_client_egress
-    )
-
-    # ============================================================
-    # SCENARIOS
-    # ============================================================
-
-    scenarios = [
-        {
-            "scenario": "Classical",
-            "algorithm": "X25519",
-            "server_crypto_ms":
-                x_server_ms,
-            "client_crypto_ms":
-                x_client_ms,
-            "server_egress_bytes":
-                x_server_egress,
-            "client_egress_bytes":
-                x_client_egress,
-        },
-
-        {
-            "scenario": "Post-Quantum",
-            "algorithm": "ML-KEM-768",
-            "server_crypto_ms":
-                kem_server_ms,
-            "client_crypto_ms":
-                kem_client_ms,
-            "server_egress_bytes":
-                kem_server_egress,
-            "client_egress_bytes":
-                kem_client_egress,
-        },
-
-        {
-            "scenario": "Hybrid",
-            "algorithm":
-                "X25519+ML-KEM-768",
-            "server_crypto_ms":
-                hybrid_server_ms,
-            "client_crypto_ms":
-                hybrid_client_ms,
-            "server_egress_bytes":
-                hybrid_server_egress,
-            "client_egress_bytes":
-                hybrid_client_egress,
-        },
-    ]
+    if missing:
+        raise RuntimeError(
+            f"Missing columns in TLS model: {sorted(missing)}"
+        )
 
     rows = []
 
-    # ============================================================
-    # SCALE MODELS
-    # ============================================================
+    for handshakes in HANDSHAKE_VOLUMES:
 
-    for scenario in scenarios:
+        for _, row in model.iterrows():
 
-        total_crypto_ms = (
-            scenario["server_crypto_ms"]
-            + scenario["client_crypto_ms"]
-        )
-
-        total_bytes = (
-            scenario["server_egress_bytes"]
-            + scenario["client_egress_bytes"]
-        )
-
-        for handshakes in SCALES:
-
-            # Equivalent serial CPU core-hours.
-            server_cpu_hours = (
-                scenario["server_crypto_ms"]
-                * handshakes
-                / 3_600_000
+            client_cpu_hours = ms_to_cpu_hours(
+                row["client_crypto_ms"],
+                handshakes,
             )
 
-            total_cpu_hours = (
-                total_crypto_ms
-                * handshakes
-                / 3_600_000
+            server_cpu_hours = ms_to_cpu_hours(
+                row["server_crypto_ms"],
+                handshakes,
             )
 
-            server_egress_gb = (
-                scenario["server_egress_bytes"]
-                * handshakes
-                / 1_000_000_000
+            total_cpu_hours = ms_to_cpu_hours(
+                row["total_crypto_ms"],
+                handshakes,
             )
 
-            total_traffic_gb = (
-                total_bytes
-                * handshakes
-                / 1_000_000_000
+            client_egress_gb = bytes_to_decimal_gb(
+                row["client_egress_bytes"],
+                handshakes,
+            )
+
+            server_egress_gb = bytes_to_decimal_gb(
+                row["server_egress_bytes"],
+                handshakes,
+            )
+
+            total_crypto_traffic_gb = bytes_to_decimal_gb(
+                row["total_transmitted_bytes"],
+                handshakes,
             )
 
             rows.append(
                 {
-                    **scenario,
+                    "handshakes_per_month": handshakes,
+                    "scenario": row["scenario"],
+                    "algorithm": row["algorithm"],
 
-                    "handshakes_per_month":
-                        handshakes,
+                    "client_crypto_ms":
+                        row["client_crypto_ms"],
+
+                    "server_crypto_ms":
+                        row["server_crypto_ms"],
 
                     "total_crypto_ms":
-                        total_crypto_ms,
+                        row["total_crypto_ms"],
 
-                    "total_transmitted_bytes":
-                        total_bytes,
+                    "client_cpu_hours_month":
+                        client_cpu_hours,
 
                     "server_cpu_hours_month":
                         server_cpu_hours,
@@ -270,81 +135,108 @@ def main():
                     "total_cpu_hours_month":
                         total_cpu_hours,
 
+                    "client_egress_bytes_per_handshake":
+                        row["client_egress_bytes"],
+
+                    "server_egress_bytes_per_handshake":
+                        row["server_egress_bytes"],
+
+                    "client_egress_gb_month":
+                        client_egress_gb,
+
                     "server_egress_gb_month":
                         server_egress_gb,
 
                     "total_crypto_traffic_gb_month":
-                        total_traffic_gb,
+                        total_crypto_traffic_gb,
                 }
             )
 
-    df = pd.DataFrame(rows)
+    result = pd.DataFrame(rows)
 
-    # ============================================================
-    # DIFFERENCE AGAINST CLASSICAL BASELINE
-    # ============================================================
+    # ========================================================
+    # COMPUTE DIFFERENCES VS CLASSICAL
+    # ========================================================
 
-    for handshakes in SCALES:
+    output_frames = []
 
-        mask = (
-            df["handshakes_per_month"]
-            == handshakes
+    for handshakes, group in result.groupby(
+        "handshakes_per_month"
+    ):
+
+        group = group.copy()
+
+        classical = group[
+            group["scenario"] == "Classical"
+        ]
+
+        if len(classical) != 1:
+            raise RuntimeError(
+                "Expected exactly one Classical row "
+                f"for {handshakes:,} handshakes."
+            )
+
+        baseline = classical.iloc[0]
+
+        group[
+            "extra_server_cpu_hours_vs_classical"
+        ] = (
+            group["server_cpu_hours_month"]
+            - baseline["server_cpu_hours_month"]
         )
 
-        subset = df[mask]
-
-        classical = subset[
-            subset["scenario"]
-            == "Classical"
-        ].iloc[0]
-
-        df.loc[
-            mask,
-            "extra_server_cpu_hours_vs_classical",
+        group[
+            "extra_server_egress_gb_vs_classical"
         ] = (
-            subset["server_cpu_hours_month"]
-            - classical[
-                "server_cpu_hours_month"
-            ]
-        ).values
+            group["server_egress_gb_month"]
+            - baseline["server_egress_gb_month"]
+        )
 
-        df.loc[
-            mask,
-            "extra_server_egress_gb_vs_classical",
+        group[
+            "extra_total_cpu_hours_vs_classical"
         ] = (
-            subset["server_egress_gb_month"]
-            - classical[
-                "server_egress_gb_month"
-            ]
-        ).values
+            group["total_cpu_hours_month"]
+            - baseline["total_cpu_hours_month"]
+        )
 
-    output_path = (
-        OUTPUT_DIR
-        / "operational_impact.csv"
+        group[
+            "extra_total_crypto_traffic_gb_vs_classical"
+        ] = (
+            group["total_crypto_traffic_gb_month"]
+            - baseline["total_crypto_traffic_gb_month"]
+        )
+
+        output_frames.append(group)
+
+    result = pd.concat(
+        output_frames,
+        ignore_index=True,
     )
 
-    df.to_csv(
-        output_path,
+    # ========================================================
+    # SAVE
+    # ========================================================
+
+    OUTPUT_DIR.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    result.to_csv(
+        OUTPUT_FILE,
         index=False,
     )
 
-    # ============================================================
-    # DISPLAY 100M SCENARIO
-    # ============================================================
+    # ========================================================
+    # DISPLAY 100M CASE
+    # ========================================================
 
-    display = df[
-        df["handshakes_per_month"]
+    focus = result[
+        result["handshakes_per_month"]
         == 100_000_000
-    ]
+    ].copy()
 
-    print("=" * 110)
-    print(
-        " OPERATIONAL IMPACT — "
-        "100 MILLION HANDSHAKES / MONTH"
-    )
-    print("=" * 110)
-
-    columns = [
+    display_columns = [
         "scenario",
         "algorithm",
         "server_crypto_ms",
@@ -354,28 +246,68 @@ def main():
         "extra_server_egress_gb_vs_classical",
     ]
 
+    print("=" * 120)
     print(
-        display[
-            columns
-        ].to_string(
-            index=False,
-            float_format=lambda x:
-                f"{x:.4f}",
-        )
+        " KEY ESTABLISHMENT OPERATIONAL IMPACT "
+        "— 100 MILLION HANDSHAKES / MONTH"
     )
+    print("=" * 120)
 
     print(
-        f"\nResults saved to: "
-        f"{output_path}"
+        focus[display_columns]
+        .round(4)
+        .to_string(index=False)
     )
 
+    print()
+    print("Additional context:")
+
+    context_columns = [
+        "scenario",
+        "client_cpu_hours_month",
+        "server_cpu_hours_month",
+        "total_cpu_hours_month",
+        "client_egress_gb_month",
+        "server_egress_gb_month",
+        "total_crypto_traffic_gb_month",
+    ]
+
     print(
-        "\nNOTE:"
-        "\nCPU-hours are equivalent serial "
-        "core-hours derived from measured "
-        "cryptographic execution time."
-        "\nThey are NOT yet cloud billing figures."
+        focus[context_columns]
+        .round(4)
+        .to_string(index=False)
     )
+
+    print()
+    print("MODEL:")
+    print(
+        "- Roles come from the canonical TLS key-establishment model."
+    )
+    print(
+        "- X25519MLKEM768 uses RFC 10024 client/server roles."
+    )
+    print(
+        "- Server-side compute and server egress are the quantities "
+        "used for company/cloud cost estimation."
+    )
+    print(
+        "- Client-side resource use is reported separately and is "
+        "not charged to the server operator."
+    )
+    print(
+        "- CPU-hours are equivalent serial CPU-hours, not VM "
+        "wall-clock hours."
+    )
+    print(
+        "- Traffic values use decimal GB."
+    )
+    print(
+        "- ML-KEM-768 alone is a conceptual PQ-only baseline, "
+        "not the RFC 10024 hybrid group."
+    )
+
+    print()
+    print(f"Results saved to: {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

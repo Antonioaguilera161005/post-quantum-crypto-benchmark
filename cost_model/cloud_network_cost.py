@@ -3,216 +3,310 @@ from pathlib import Path
 import pandas as pd
 
 
-INPUT_PATH = Path(
+INPUT_FILE = Path(
     "results/economic/operational_impact.csv"
 )
 
-OUTPUT_PATH = Path(
-    "results/economic/cloud_network_cost.csv"
-)
+OUTPUT_DIR = Path("results/economic")
+OUTPUT_FILE = OUTPUT_DIR / "cloud_network_cost.csv"
 
 
-# Simplified current public pricing scenarios.
+# ============================================================
+# PROVIDER ASSUMPTIONS
+# ============================================================
 #
-# IMPORTANT:
-# These values are assumptions derived from provider public pricing
-# and should be periodically reviewed.
+# These values are modelling inputs.
+# We will later move them to a dedicated config file with
+# source URL and checked date.
+#
+# Azure:
+#   - Decimal GB
+#
+# GCP:
+#   - Billing model expressed here in GiB
+#
+# "Standalone":
+#   Free allowance is available to the crypto workload.
+#
+# "Marginal":
+#   Existing business traffic has already consumed the
+#   provider's free allowance, so every additional unit
+#   caused by the cryptographic workload is billed.
+# ============================================================
 
 PROVIDERS = {
-    "Azure-Europe-Premium": {
-        "unit": "GB",
-        "free_monthly": 100.0,
+    "Azure": {
         "price_per_unit": 0.087,
+        "free_units_month": 100.0,
+        "network_unit": "GB",
         "currency": "USD",
     },
-
-    "GCP-Madrid-Standard": {
-        "unit": "GiB",
-        "free_monthly": 200.0,
+    "GCP": {
         "price_per_unit": 0.085,
+        "free_units_month": 200.0,
+        "network_unit": "GiB",
         "currency": "USD",
     },
 }
 
 
-BYTES_PER_GB = 1_000_000_000
 BYTES_PER_GIB = 1024 ** 3
+BYTES_PER_GB = 1_000_000_000
 
 
-def gb_to_provider_units(gb, unit):
+def decimal_gb_to_gib(decimal_gb):
+    """
+    Convert decimal GB to binary GiB.
+    """
+    total_bytes = decimal_gb * BYTES_PER_GB
+    return total_bytes / BYTES_PER_GIB
 
-    total_bytes = gb * BYTES_PER_GB
 
+def convert_network_units(decimal_gb, unit):
     if unit == "GB":
-        return gb
+        return decimal_gb
 
     if unit == "GiB":
-        return total_bytes / BYTES_PER_GIB
+        return decimal_gb_to_gib(decimal_gb)
 
     raise ValueError(
-        f"Unsupported unit: {unit}"
-    )
-
-
-def standalone_cost(
-    traffic_units,
-    free_monthly,
-    price_per_unit,
-):
-    """
-    Cost when the measured cryptographic traffic is treated
-    as the account's only outbound traffic.
-    """
-
-    billable = max(
-        traffic_units - free_monthly,
-        0
-    )
-
-    return billable * price_per_unit
-
-
-def marginal_cost(
-    extra_units,
-    price_per_unit,
-):
-    """
-    Incremental cost assuming the provider free allowance
-    has already been consumed by normal company traffic.
-    """
-
-    return (
-        max(extra_units, 0)
-        * price_per_unit
+        f"Unsupported network billing unit: {unit}"
     )
 
 
 def main():
 
-    operational = pd.read_csv(
-        INPUT_PATH
-    )
+    if not INPUT_FILE.exists():
+        raise FileNotFoundError(
+            f"Missing operational impact file: {INPUT_FILE}"
+        )
+
+    impact = pd.read_csv(INPUT_FILE)
+
+    required_columns = {
+        "handshakes_per_month",
+        "scenario",
+        "algorithm",
+        "server_egress_gb_month",
+    }
+
+    missing = required_columns - set(impact.columns)
+
+    if missing:
+        raise RuntimeError(
+            f"Missing required columns: {sorted(missing)}"
+        )
 
     rows = []
 
-    for provider, pricing in PROVIDERS.items():
+    for provider_name, config in PROVIDERS.items():
 
-        for _, row in operational.iterrows():
+        for _, row in impact.iterrows():
 
-            traffic_units = gb_to_provider_units(
+            network_units = convert_network_units(
                 row["server_egress_gb_month"],
-                pricing["unit"],
+                config["network_unit"],
             )
 
-            extra_units = gb_to_provider_units(
-                row[
-                    "extra_server_egress_gb_vs_classical"
-                ],
-                pricing["unit"],
+            # --------------------------------------------
+            # Standalone model
+            # --------------------------------------------
+
+            billable_standalone = max(
+                0.0,
+                network_units
+                - config["free_units_month"],
             )
 
-            isolated_cost = standalone_cost(
-                traffic_units,
-                pricing["free_monthly"],
-                pricing["price_per_unit"],
+            standalone_cost = (
+                billable_standalone
+                * config["price_per_unit"]
             )
 
-            incremental_cost = marginal_cost(
-                extra_units,
-                pricing["price_per_unit"],
+            # --------------------------------------------
+            # Marginal / enterprise model
+            #
+            # Assume free allowance has already been
+            # consumed by the organization's normal traffic.
+            # --------------------------------------------
+
+            marginal_billable_units = network_units
+
+            marginal_cost = (
+                marginal_billable_units
+                * config["price_per_unit"]
             )
 
             rows.append(
                 {
-                    "provider": provider,
-                    "scenario": row["scenario"],
-                    "algorithm": row["algorithm"],
                     "handshakes_per_month":
                         row["handshakes_per_month"],
+
+                    "provider":
+                        provider_name,
+
+                    "scenario":
+                        row["scenario"],
+
+                    "algorithm":
+                        row["algorithm"],
 
                     "server_egress_gb_month":
                         row["server_egress_gb_month"],
 
-                    "provider_traffic_units":
-                        traffic_units,
+                    "network_unit":
+                        config["network_unit"],
 
-                    "provider_unit":
-                        pricing["unit"],
+                    "network_units_month":
+                        network_units,
 
-                    "free_monthly_units":
-                        pricing["free_monthly"],
+                    "free_units_month":
+                        config["free_units_month"],
 
                     "price_per_unit":
-                        pricing["price_per_unit"],
+                        config["price_per_unit"],
 
-                    "standalone_network_cost":
-                        isolated_cost,
+                    "standalone_billable_units":
+                        billable_standalone,
 
-                    "marginal_extra_network_cost_vs_classical":
-                        incremental_cost,
+                    "standalone_network_cost_month":
+                        standalone_cost,
+
+                    "marginal_billable_units":
+                        marginal_billable_units,
+
+                    "marginal_network_cost_month":
+                        marginal_cost,
 
                     "currency":
-                        pricing["currency"],
+                        config["currency"],
                 }
             )
 
     result = pd.DataFrame(rows)
 
-    OUTPUT_PATH.parent.mkdir(
+    # ========================================================
+    # COST DIFFERENCES VS CLASSICAL
+    # ========================================================
+
+    frames = []
+
+    for (
+        handshakes,
+        provider,
+    ), group in result.groupby(
+        [
+            "handshakes_per_month",
+            "provider",
+        ]
+    ):
+
+        group = group.copy()
+
+        classical = group[
+            group["scenario"] == "Classical"
+        ]
+
+        if len(classical) != 1:
+            raise RuntimeError(
+                "Expected exactly one Classical row for "
+                f"{provider}, {handshakes:,} handshakes."
+            )
+
+        baseline = classical.iloc[0]
+
+        group[
+            "extra_standalone_network_cost_vs_classical"
+        ] = (
+            group["standalone_network_cost_month"]
+            - baseline["standalone_network_cost_month"]
+        )
+
+        group[
+            "extra_marginal_network_cost_vs_classical"
+        ] = (
+            group["marginal_network_cost_month"]
+            - baseline["marginal_network_cost_month"]
+        )
+
+        frames.append(group)
+
+    result = pd.concat(
+        frames,
+        ignore_index=True,
+    )
+
+    # ========================================================
+    # SAVE
+    # ========================================================
+
+    OUTPUT_DIR.mkdir(
         parents=True,
         exist_ok=True,
     )
 
     result.to_csv(
-        OUTPUT_PATH,
+        OUTPUT_FILE,
         index=False,
     )
 
-    display = result[
+    # ========================================================
+    # DISPLAY 100M CASE
+    # ========================================================
+
+    focus = result[
         result["handshakes_per_month"]
         == 100_000_000
-    ]
+    ].copy()
 
-    print("=" * 110)
-    print(
-        " CLOUD NETWORK COST — "
-        "100 MILLION HANDSHAKES / MONTH"
-    )
-    print("=" * 110)
-
-    columns = [
+    display_columns = [
         "provider",
         "scenario",
         "algorithm",
         "server_egress_gb_month",
-        "standalone_network_cost",
-        "marginal_extra_network_cost_vs_classical",
-        "currency",
+        "network_units_month",
+        "standalone_network_cost_month",
+        "marginal_network_cost_month",
+        "extra_marginal_network_cost_vs_classical",
     ]
 
+    print("=" * 140)
     print(
-        display[
-            columns
-        ].to_string(
-            index=False,
-            float_format=lambda x:
-                f"{x:.4f}",
-        )
+        " CLOUD NETWORK COST — "
+        "100 MILLION HANDSHAKES / MONTH"
     )
+    print("=" * 140)
 
     print(
-        f"\nResults saved to: "
-        f"{OUTPUT_PATH}"
+        focus[display_columns]
+        .round(4)
+        .to_string(index=False)
     )
 
+    print()
+    print("MODEL:")
     print(
-        "\nInterpretation:"
-        "\nstandalone_network_cost = "
-        "crypto traffic treated in isolation."
-        "\nmarginal_extra_network_cost_vs_classical = "
-        "incremental PQC cost assuming free allowance "
-        "is already consumed."
+        "- Only server egress is charged to the cloud operator."
     )
+    print(
+        "- Standalone model applies the provider free allowance."
+    )
+    print(
+        "- Marginal model assumes the free allowance has already "
+        "been consumed by normal business traffic."
+    )
+    print(
+        "- Azure billing units are modelled as decimal GB."
+    )
+    print(
+        "- GCP traffic is converted from decimal GB to GiB."
+    )
+    print(
+        "- ML-KEM-768 is a conceptual PQ-only baseline."
+    )
+
+    print()
+    print(f"Results saved to: {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

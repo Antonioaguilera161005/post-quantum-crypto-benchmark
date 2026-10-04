@@ -1,4 +1,0 @@
-scenario,applications,engineers,hourly_engineering_cost,total_engineering_hours,crypto_inventory_cost,implementation_cost,testing_cost,pki_cost,deployment_cost,training_cost,labor_cost,hsm_upgrade_cost,total_migration_cost
-Startup,5,2,60,192,1440,4800,2400,960,1440,480,11520,0,11520
-Mid-size,30,6,75,1348,9000,45000,22500,9000,12000,3600,101100,15000,116100
-Enterprise,200,20,95,9400,76000,380000,209000,85500,114000,28500,893000,120000,1013000

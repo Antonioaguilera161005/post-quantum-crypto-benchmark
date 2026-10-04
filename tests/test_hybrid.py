@@ -1,69 +1,79 @@
 from algorithms.hybrid.x25519_mlkem768 import (
-    X25519MLKEM768
+    X25519MLKEM768,
 )
 
 
-def main():
+def test_x25519_mlkem768_shared_secret():
 
     hybrid = X25519MLKEM768()
 
     result = hybrid.establish()
 
-    print("=" * 60)
-    print(" HYBRID X25519 + ML-KEM-768")
-    print("=" * 60)
-
-    print(
-        f"\nX25519 secret: "
-        f"{result['x25519_secret'].hex()[:32]}..."
+    assert (
+        result["client_secret"]
+        == result["server_secret"]
     )
 
-    print(
-        f"ML-KEM secret: "
-        f"{result['mlkem_secret'].hex()[:32]}..."
-    )
-
-    print(
-        f"Hybrid secret: "
-        f"{result['alice_secret'].hex()[:32]}..."
-    )
-
-    print(
-        "\nShared hybrid secrets match:",
-        result["alice_secret"]
-        == result["bob_secret"]
-    )
-
-    print("\nTransmitted cryptographic material:")
-
-    print(
-        "X25519 public keys:",
-        2 * result["x25519_public_key_bytes"],
-        "bytes"
-    )
-
-    print(
-        "ML-KEM public key:",
-        result["mlkem_public_key_bytes"],
-        "bytes"
-    )
-
-    print(
-        "ML-KEM ciphertext:",
-        result["mlkem_ciphertext_bytes"],
-        "bytes"
-    )
-
-    total = (
-        2 * result["x25519_public_key_bytes"]
-        + result["mlkem_public_key_bytes"]
-        + result["mlkem_ciphertext_bytes"]
-    )
-
-    print(
-        f"\nTotal hybrid material: {total} bytes"
+    assert (
+        result["hybrid_secret_bytes"]
+        == 64
     )
 
 
-if __name__ == "__main__":
-    main()
+def test_x25519_mlkem768_secret_layout():
+
+    hybrid = X25519MLKEM768()
+
+    result = hybrid.establish()
+
+    shared_secret = (
+        result["client_secret"]
+    )
+
+    # RFC 10024:
+    #
+    # ML-KEM shared secret
+    # ||
+    # X25519 shared secret
+
+    assert (
+        shared_secret[:32]
+        == result["mlkem_secret"]
+    )
+
+    assert (
+        shared_secret[32:]
+        == result["x25519_secret"]
+    )
+
+
+def test_x25519_mlkem768_sizes():
+
+    hybrid = X25519MLKEM768()
+
+    result = hybrid.establish()
+
+    assert (
+        result["mlkem_public_key_bytes"]
+        == 1184
+    )
+
+    assert (
+        result["mlkem_ciphertext_bytes"]
+        == 1088
+    )
+
+    assert (
+        result["x25519_public_key_bytes"]
+        == 32
+    )
+
+    assert (
+        result["client_share_bytes"]
+        == 1216
+    )
+
+    assert (
+        result["server_share_bytes"]
+        == 1120
+    )
