@@ -1,6 +1,8 @@
 # Post-Quantum Cryptography Benchmark & Migration Cost Analysis
 
-A reproducible benchmark comparing classical, post-quantum and hybrid cryptographic constructions, with an additional model of their operational and migration costs.
+[![Tests and Reproducibility](https://github.com/Antonioaguilera161005/post-quantum-crypto-benchmark/actions/workflows/tests.yml/badge.svg)](https://github.com/Antonioaguilera161005/post-quantum-crypto-benchmark/actions/workflows/tests.yml)
+
+A reproducible benchmark comparing classical, post-quantum and hybrid cryptographic constructions, together with a simplified model of their operational and migration costs.
 
 The project focuses on two questions:
 
@@ -9,11 +11,12 @@ The project focuses on two questions:
 
 The benchmark covers:
 
-- **X25519**
-- **ML-KEM-512 / 768 / 1024**
-- **X25519MLKEM768**, following the role assignment defined in RFC 10024
-- **ECDSA P-256**
-- **ML-DSA-44 / 65 / 87**
+- X25519
+- ML-KEM-512 / 768 / 1024
+- X25519MLKEM768
+- ECDSA P-256
+- ML-DSA-44 / 65 / 87
+- HKDF-SHA256
 
 ---
 
@@ -23,8 +26,7 @@ The benchmark covers:
 |---|---:|
 | ML-KEM-768 vs X25519 | **1.10×** total cryptographic work |
 | 95% bootstrap CI | **1.00× – 1.20×** |
-| X25519MLKEM768 vs X25519 | **2.10×** total cryptographic work |
-| 95% bootstrap CI | **2.00× – 2.20×** |
+| X25519MLKEM768 vs X25519 | **2.10× derived total cryptographic work** |
 | ML-KEM-768 server compute | **0.71×** X25519 |
 | Hybrid server compute | **1.71×** X25519 |
 | ML-KEM-768 transmitted material | **35.5×** X25519 |
@@ -34,14 +36,13 @@ The benchmark covers:
 | ML-DSA-44 public key size | **20.18×** ECDSA P-256 |
 | ML-DSA-44 signature size | **34.09×** ECDSA P-256 |
 
-In this benchmark environment, ML-KEM-768 showed a modest total compute
-overhead relative to X25519.
+In this benchmark environment, ML-KEM-768 showed a modest total compute overhead relative to X25519.
 
-The hybrid X25519MLKEM768 construction required approximately twice the
-total cryptographic work of X25519.
+The X25519MLKEM768 value is a **derived component-model result**, not an independent end-to-end TLS measurement. By construction, the hybrid model adds the measured X25519 work to the measured ML-KEM-768 work.
 
-The larger operational difference came from **transmitted cryptographic
-material rather than CPU time**.
+The separate Python end-to-end hybrid diagnostic measured **0.4457 ms**, compared with **0.3753 ms** for the component model, about **18.8% higher**. This diagnostic includes wrapper, object-creation and other end-to-end Python overhead, so it is reported separately rather than used as the canonical comparison.
+
+The largest difference in the benchmark is not CPU time but transmitted cryptographic material.
 
 ![Key-establishment benchmark](results/figures/key_establishment_compute.png)
 
@@ -49,7 +50,7 @@ material rather than CPU time**.
 
 ## Key-establishment results
 
-The canonical comparison models the client and server work separately.
+The main comparison is an RFC 10024-oriented component model with client and server work separated.
 
 | Scenario | Client crypto | Server crypto | Total | Transmitted |
 |---|---:|---:|---:|---:|
@@ -59,11 +60,15 @@ The canonical comparison models the client and server work separately.
 
 ML-KEM-768 alone is included as a conceptual PQ-only baseline.
 
-The hybrid construction follows the client/server role assignment used by
-**X25519MLKEM768 in RFC 10024**.
+For X25519MLKEM768, the client/server operation assignment follows RFC 10024:
 
-The separate end-to-end Python hybrid benchmark is retained as a diagnostic
-measurement and is not used as the canonical TLS performance result.
+- the client performs ML-KEM key generation and decapsulation;
+- the server performs ML-KEM encapsulation;
+- both sides perform X25519 operations.
+
+The hybrid result is obtained by summing the measured primitive costs for those operations.
+
+It should therefore be interpreted as a **TLS-oriented component model**, not as a measured complete TLS handshake.
 
 ---
 
@@ -87,27 +92,27 @@ For ML-DSA-44:
 
 ## Operational cost model
 
-The benchmark results are also translated into simplified cloud-resource
-scenarios.
+The benchmark results are translated into simplified cloud-resource scenarios.
 
-For **100 million key establishments per month**, the hybrid construction
-produces:
+For **100 million key establishments per month**:
 
 | Provider | Classical | Hybrid | Extra vs classical |
 |---|---:|---:|---:|
 | Azure | $0.41/month | $9.97/month | **$9.56/month** |
 | GCP | $0.35/month | $9.03/month | **$8.68/month** |
 
-For **100 million signed operations per month**, ML-DSA-44 produces:
+For **100 million signed operations per month** using ML-DSA-44:
 
 | Provider | ECDSA P-256 | ML-DSA-44 | Extra |
 |---|---:|---:|---:|
 | Azure | $0.68/month | $21.66/month | **$20.98/month** |
 | GCP | $0.61/month | $19.61/month | **$18.99/month** |
 
-These values are **model outputs**, not universal cloud-cost estimates.
+Under these assumptions, the direct cryptographic runtime cost is small even at 100 million key establishments per month.
 
-Pricing, traffic assumptions and migration assumptions are configurable.
+The larger practical concern is therefore not raw CPU cost, but increased transmitted data and the engineering effort required to migrate existing systems.
+
+The migration-cost scenarios in this repository are hypothetical and should not be interpreted as empirical estimates of real company migrations.
 
 ---
 
@@ -115,17 +120,16 @@ Pricing, traffic assumptions and migration assumptions are configurable.
 
 The committed benchmark campaign uses:
 
-- **10 independent runs**
-- **100 warm-up iterations** per operation
-- **2,000 measured timing samples** per operation and run
+- 10 independent runs
+- 100 warm-up iterations per operation
+- 2,000 measured timing samples per operation and run
 - aggregation across independent run means
 - run-level coefficients of variation
-- **10,000 non-parametric bootstrap resamples**
-- paired run-level bootstrap comparisons
-- fixed bootstrap seed for reproducibility
+- 10,000 non-parametric bootstrap resamples
+- paired run-level comparisons
+- a fixed bootstrap seed for reproducibility
 
-Individual timing iterations are not treated as independent experimental
-replicates when calculating the confidence intervals.
+Individual timing iterations are not treated as independent experimental replicates when calculating confidence intervals.
 
 The final benchmark campaign was executed using:
 
@@ -137,8 +141,7 @@ The final benchmark campaign was executed using:
 - AMD Ryzen 5 7520U
 - Windows x64
 
-Native `liboqs` speed binaries are also executed once per benchmark campaign
-as an implementation-level cross-check.
+Native liboqs speed binaries are also executed once per benchmark campaign as an implementation-level cross-check.
 
 Full methodology:
 
@@ -150,8 +153,7 @@ Full methodology:
 
 The committed raw benchmark runs are treated as experimental inputs.
 
-All deterministic statistical analyses and economic models can be regenerated
-with:
+All deterministic statistical analyses and economic models can be regenerated with:
 
 ```bash
 python -m analysis.reproduce
@@ -175,8 +177,7 @@ A completely new hardware-dependent benchmark campaign can be launched with:
 python -m benchmarks.run_full_campaign
 ```
 
-Raw benchmark measurements are intentionally not regenerated by CI because
-timing results depend on the machine and runtime environment.
+Raw hardware timing measurements are intentionally not regenerated by CI because they depend on the machine and runtime environment.
 
 More details:
 
@@ -200,7 +201,7 @@ benchmarks/
 
 analysis/
     aggregation
-    TLS key-establishment model
+    RFC 10024-oriented component model
     bootstrap confidence intervals
     figure generation
     reproduction pipeline
@@ -226,9 +227,9 @@ docs/
 
 ## Documentation
 
-Detailed documentation has been separated from the main README:
+Detailed documentation is kept outside the main README:
 
-- **[Methodology](docs/methodology.md)** — benchmark design, RFC 10024 model and statistical treatment
+- **[Methodology](docs/methodology.md)** — benchmark design, component model and statistical treatment
 - **[Results](docs/results.md)** — complete benchmark and confidence-interval results
 - **[Economic model](docs/economic_model.md)** — operational and migration cost assumptions
 - **[Reproducibility](docs/reproducibility.md)** — environment, commands, raw data and CI
@@ -237,37 +238,45 @@ Detailed documentation has been separated from the main README:
 
 ## Important limitations
 
-This project is a benchmark and modelling exercise, not a complete TLS
-deployment study.
+This project is a benchmark and modelling exercise, not a complete TLS deployment study.
 
 In particular:
 
-- the canonical hybrid result is component-based rather than a full serialized
-  TLS handshake benchmark;
-- the Python end-to-end hybrid measurement includes wrapper and object-creation
-  overhead and is therefore treated only as diagnostic;
-- network calculations model cryptographic payload sizes rather than complete
-  packets and protocol overhead;
+- the canonical hybrid result is a derived component model rather than a complete serialized TLS handshake measurement;
+- the Python end-to-end hybrid diagnostic includes wrapper and object-creation overhead;
+- the model counts cryptographic material rather than complete TLS records or network packets;
 - TLS resumption is not included;
-- signature traffic does not currently include certificate-chain distribution;
+- packet fragmentation and MTU effects are not modelled;
+- signature traffic does not include certificate-chain distribution;
 - cloud costs are simplified resource models rather than complete VM bills;
-- provider pricing tiers are not intended as a direct provider ranking;
-- migration costs are hypothetical configurable scenarios, not empirical
-  estimates of real company migrations.
+- provider pricing tiers are not intended as a direct provider comparison;
+- migration costs are hypothetical configurable scenarios;
+- ML-KEM is benchmarked through liboqs/liboqs-python, while X25519 uses cryptography/OpenSSL, so relative timings include implementation-stack differences as well as algorithmic differences;
+- the final campaign was executed on a low-power laptop using the Windows **Balanced** power plan, so timings should not be treated as server-grade performance measurements.
 
 ---
 
-## Why this project exists
+## Main conclusion
 
-Post-quantum migration is often discussed only in terms of algorithmic
-security.
+Under the assumptions used here, the direct CPU and cloud-runtime cost of post-quantum key establishment is small.
 
-This project looks at a different part of the problem: what changes when those
-algorithms have to be executed, transmitted and deployed in real systems.
+The clearest measurable change is data size: ML-KEM-768 and X25519MLKEM768 transmit roughly **35–36× more cryptographic material** than the X25519 baseline.
 
-The goal is not to predict a universal migration cost, but to provide a
-reproducible framework where cryptographic measurements can be connected to
-explicit operational assumptions.
+For a real organization, the harder problem is therefore likely to be migration engineering, interoperability, deployment and protocol integration rather than raw cryptographic CPU cost.
+
+---
+
+## Future work
+
+Possible extensions include:
+
+- native OpenSSL cross-checks for X25519 and ECDSA;
+- measurements on a dedicated Linux server;
+- serialized TLS `KeyShare` measurements;
+- full TLS interoperability testing with X25519MLKEM768;
+- certificate-chain modelling for ML-DSA;
+- TLS resumption scenarios;
+- packet and MTU-level network analysis.
 
 ---
 
@@ -275,8 +284,7 @@ explicit operational assumptions.
 
 **Antonio Aguilera Slavcheva**
 
-Mathematical Engineering student interested in applied cryptography,
-post-quantum cryptography and security research.
+Mathematical Engineering student interested in applied cryptography, post-quantum cryptography and security research.
 
 GitHub: [Antonioaguilera161005](https://github.com/Antonioaguilera161005)
 

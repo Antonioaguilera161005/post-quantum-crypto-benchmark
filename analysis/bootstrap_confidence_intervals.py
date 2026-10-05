@@ -631,9 +631,10 @@ def main():
     )
 
     result.to_csv(
-        OUTPUT_FILE,
-        index=False,
-    )
+    OUTPUT_FILE,
+    index=False,
+    float_format="%.6f",
+)
 
     print()
     print(

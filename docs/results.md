@@ -2,9 +2,7 @@
 
 This document contains the main numerical results from the final benchmark campaign.
 
-## Key establishment
-
-### Primitive measurements
+## Primitive key-establishment measurements
 
 | Algorithm | Operation | Mean |
 |---|---|---:|
@@ -21,15 +19,7 @@ This document contains the main numerical results from the final benchmark campa
 | ML-KEM-1024 | decaps | 0.1014 ms |
 | HKDF-SHA256 | derive | 0.0071 ms |
 
-The standalone hybrid end-to-end diagnostic measured approximately:
-
-```text
-0.4457 ms
-```
-
-This diagnostic value is not used as the canonical TLS comparison.
-
-## Canonical TLS key-establishment model
+## Canonical key-establishment component model
 
 | Scenario | Client | Server | Total | Transmitted |
 |---|---:|---:|---:|---:|
@@ -37,37 +27,85 @@ This diagnostic value is not used as the canonical TLS comparison.
 | ML-KEM-768 | 0.1335 ms | 0.0635 ms | 0.1970 ms | 2,272 B |
 | X25519MLKEM768 | 0.2226 ms | 0.1526 ms | 0.3753 ms | 2,336 B |
 
-### Relative results
+## ML-KEM-768 vs X25519
 
-ML-KEM-768 compared with X25519:
-
-```text
-Total compute ratio: 1.1046×
-95% bootstrap CI:   1.0029× – 1.2019×
-```
-
-Hybrid X25519MLKEM768 compared with X25519:
+Total compute ratio:
 
 ```text
-Total compute ratio: 2.1046×
-95% bootstrap CI:   2.0029× – 2.2019×
+1.1046×
 ```
 
-Server-side ML-KEM-768 compared with X25519:
+95% bootstrap confidence interval:
 
 ```text
-Server compute ratio: 0.7119×
-95% bootstrap CI:    0.6410× – 0.7904×
+1.0029× – 1.2019×
 ```
 
-Server-side hybrid compared with X25519:
+Server-side compute ratio:
 
 ```text
-Server compute ratio: 1.7119×
-95% bootstrap CI:    1.6410× – 1.7904×
+0.7119×
 ```
 
-### Traffic
+95% bootstrap confidence interval:
+
+```text
+0.6410× – 0.7904×
+```
+
+The measured total-compute difference is modest.
+
+Because X25519 and ML-KEM use different implementation stacks, this ratio should not be interpreted as a pure algorithm-only comparison.
+
+## Derived hybrid result
+
+The X25519MLKEM768 result is obtained by summing the measured X25519 and ML-KEM-768 component costs according to the RFC 10024 role assignment.
+
+It is therefore not an independent timing measurement.
+
+The derived model gives:
+
+```text
+0.3753 ms
+```
+
+Relative to X25519:
+
+```text
+2.1046×
+```
+
+Because the hybrid model contains the full X25519 work plus the ML-KEM component work, this ratio is mathematically related to the ML-KEM/X25519 ratio.
+
+It should not be interpreted as a separate independent statistical observation.
+
+## End-to-end hybrid diagnostic
+
+The separate Python end-to-end diagnostic gives:
+
+```text
+0.4457 ms
+```
+
+Compared with:
+
+```text
+0.3753 ms
+```
+
+for the component model.
+
+The diagnostic is approximately:
+
+```text
+18.8% higher
+```
+
+This difference includes additional Python wrapper and object-creation overhead.
+
+The diagnostic result is therefore reported separately and is not used as the canonical TLS-oriented comparison.
+
+## Traffic
 
 Compared with the 64-byte X25519 baseline:
 
@@ -76,7 +114,7 @@ ML-KEM-768:       35.5×
 X25519MLKEM768:   36.5×
 ```
 
-The increase in transmitted cryptographic material is much larger than the measured increase in compute time.
+This is the largest relative change observed in the key-establishment comparison.
 
 ## Digital signatures
 
@@ -87,29 +125,39 @@ The increase in transmitted cryptographic material is much larger than the measu
 | ML-DSA-65 | 0.1870 ms | 0.6314 ms | 0.1791 ms | 1,952 B | 3,309 B |
 | ML-DSA-87 | 0.2996 ms | 0.7390 ms | 0.2777 ms | 2,592 B | 4,627 B |
 
-### ML-DSA-44 vs ECDSA P-256
+## ML-DSA-44 vs ECDSA P-256
 
-Signing:
+Signing ratio:
 
 ```text
 9.0886×
-95% bootstrap CI: 7.3856× – 10.7819×
 ```
 
-Verification:
+95% bootstrap confidence interval:
+
+```text
+7.3856× – 10.7819×
+```
+
+Verification ratio:
 
 ```text
 1.1327×
-95% bootstrap CI: 1.0441× – 1.2201×
 ```
 
-Public-key size:
+95% bootstrap confidence interval:
+
+```text
+1.0441× – 1.2201×
+```
+
+Public-key-size ratio:
 
 ```text
 20.18×
 ```
 
-Signature size:
+Signature-size ratio:
 
 ```text
 34.09×
@@ -125,7 +173,7 @@ For 100 million key establishments per month:
 | ML-KEM-768 | 1.7631 h | 108.8 GB |
 | X25519MLKEM768 | 4.2395 h | 112.0 GB |
 
-Including client and server cryptographic work:
+Including both client and server cryptographic work:
 
 | Scenario | Total CPU hours | Total cryptographic traffic |
 |---|---:|---:|
@@ -133,7 +181,7 @@ Including client and server cryptographic work:
 | ML-KEM-768 | 5.4710 h | 227.2 GB |
 | X25519MLKEM768 | 10.4239 h | 233.6 GB |
 
-## Cloud model
+## Key-establishment cloud model
 
 For 100 million key establishments per month:
 
@@ -167,6 +215,10 @@ $8.68/month
 $104.19/year
 ```
 
+Under the assumptions of this model, direct cryptographic runtime cost remains small even at 100 million monthly key establishments.
+
+The operational difference is driven mainly by transmitted cryptographic material rather than CPU cost.
+
 ## Signature cloud model
 
 For 100 million signed operations per month:
@@ -189,6 +241,6 @@ For 100 million signed operations per month:
 | ML-DSA-65 | $26.89/month |
 | ML-DSA-87 | $37.44/month |
 
-These values depend strongly on the configured pricing assumptions and on the traffic model.
+These values depend on the configured pricing assumptions and traffic model.
 
-They should not be interpreted as universal deployment costs.
+They are not universal deployment-cost estimates.

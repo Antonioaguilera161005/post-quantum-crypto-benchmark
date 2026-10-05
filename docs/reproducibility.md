@@ -1,14 +1,10 @@
 # Reproducibility
 
-This project separates hardware-dependent experimental measurements from deterministic derived analysis.
+This project separates hardware-dependent measurements from deterministic derived analysis.
 
-## Two levels of reproduction
+## Reproduce the analysis
 
-There are two different workflows.
-
-### 1. Reproduce the analysis
-
-This uses the committed raw benchmark measurements as experimental inputs.
+The committed raw benchmark runs are treated as experimental inputs.
 
 Run:
 
@@ -18,20 +14,22 @@ python -m analysis.reproduce
 
 This regenerates:
 
-- aggregated ML-KEM results;
-- aggregated X25519 results;
-- aggregated HKDF results;
-- hybrid diagnostic results;
-- canonical TLS key-establishment model;
-- signature aggregates;
-- bootstrap confidence intervals;
-- operational impact;
-- provider compute costs;
-- network costs;
-- combined operational costs;
-- signature cost analysis;
-- migration scenarios;
-- migration sensitivity results.
+```text
+aggregated ML-KEM results
+aggregated X25519 results
+aggregated HKDF results
+hybrid diagnostic results
+RFC 10024-oriented component model
+signature aggregates
+bootstrap confidence intervals
+operational impact
+provider compute costs
+network costs
+combined operational costs
+signature cost analysis
+migration scenarios
+migration sensitivity results
+```
 
 To regenerate figures as well:
 
@@ -39,13 +37,11 @@ To regenerate figures as well:
 python -m analysis.reproduce --figures
 ```
 
-This workflow is deterministic and is suitable for continuous integration.
+This workflow is deterministic and is used by continuous integration.
 
-## 2. Run a new benchmark campaign
+## Run a new benchmark campaign
 
-A new campaign performs hardware-dependent measurements again.
-
-Run:
+A new hardware-dependent campaign can be executed with:
 
 ```bash
 python -m benchmarks.run_full_campaign
@@ -53,12 +49,14 @@ python -m benchmarks.run_full_campaign
 
 This launches:
 
-1. native ML-KEM cross-check;
-2. 10 key-establishment runs;
-3. native ML-DSA cross-check;
-4. 10 digital-signature runs.
+```text
+native ML-KEM cross-check
+10 key-establishment runs
+native ML-DSA cross-check
+10 digital-signature runs
+```
 
-The key-establishment suite includes:
+The key-establishment suite contains:
 
 ```text
 ML-KEM
@@ -67,7 +65,7 @@ X25519MLKEM768 diagnostic
 HKDF-SHA256
 ```
 
-The signature suite includes:
+The signature suite contains:
 
 ```text
 ECDSA P-256
@@ -78,9 +76,7 @@ ML-DSA
 
 The committed campaign used Python 3.11.9.
 
-Create and activate a virtual environment before installing the project dependencies.
-
-Example on Windows PowerShell:
+On Windows PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -92,7 +88,7 @@ pip install -r requirements.txt
 
 The final Windows campaign used an explicit Release build of liboqs 0.16.0.
 
-The installation path was:
+The installation path on the benchmark machine was:
 
 ```text
 C:\Users\anton\_oqs_release
@@ -104,7 +100,7 @@ The loaded library was:
 C:\Users\anton\_oqs_release\bin\oqs.dll
 ```
 
-The environment can be configured in PowerShell with:
+The runtime environment can be configured with:
 
 ```powershell
 $env:OQS_INSTALL_PATH = "$HOME\_oqs_release"
@@ -116,6 +112,10 @@ The loaded native library can be checked with:
 ```powershell
 python -c "import oqs; print(oqs.native()._name)"
 ```
+
+These machine-specific paths are recorded as experimental provenance.
+
+Future campaigns can normalize paths in generated metadata without changing the committed measurements from the original campaign.
 
 ## Benchmark provenance
 
@@ -139,19 +139,35 @@ At the start of the full campaign the runner records:
 - target platform;
 - Windows power scheme.
 
-The metadata is stored in each:
+The metadata is stored in:
 
 ```text
 results/raw/runs/run_XX/environment.json
 ```
 
-The final committed campaign started from:
+The final committed campaign started with:
 
 ```text
 git_dirty_at_campaign_start = false
 ```
 
-Both benchmark suites also record the same campaign start timestamp and Git commit.
+Both benchmark suites record the same campaign start time and Git commit.
+
+## Power configuration
+
+The final benchmark campaign was executed with the Windows:
+
+```text
+Balanced
+```
+
+power plan.
+
+This is recorded in the environment metadata.
+
+The machine is a low-power laptop, so the benchmark should not be interpreted as server-grade performance.
+
+A dedicated Linux-server campaign would be a useful future comparison.
 
 ## Native cross-checks
 
@@ -169,7 +185,9 @@ results/native/ml_kem_768_speed.txt
 results/native/ml_dsa_44_speed.txt
 ```
 
-These files include the native build configuration and measured operation timings.
+These files include the native liboqs configuration and operation timings.
+
+They are used as implementation-level sanity checks rather than as replacements for the main benchmark campaign.
 
 ## Raw data layout
 
@@ -200,6 +218,10 @@ Aggregated results are stored in:
 results/raw/aggregated/
 ```
 
+There is no separate top-level `results/raw/environment.json`.
+
+Per-run environment records are the canonical provenance source.
+
 ## Statistical reproducibility
 
 Bootstrap confidence intervals can be regenerated with:
@@ -217,7 +239,9 @@ Random seed: 20261005
 Bootstrap unit: independent run
 ```
 
-Using a fixed seed makes the committed confidence-interval output reproducible.
+The bootstrap CSV serializes floating-point values to six decimal places.
+
+This avoids meaningless differences at approximately machine-precision scale from causing reproducibility checks to fail.
 
 ## Tests
 
@@ -229,30 +253,40 @@ python -m pytest
 
 The current test suite contains 18 tests covering:
 
-- hybrid construction;
-- ML-KEM;
-- digital signatures;
-- X25519.
+```text
+hybrid construction
+ML-KEM
+digital signatures
+X25519
+```
 
 ## Continuous integration
 
-GitHub Actions performs the following on supported pushes and pull requests:
+GitHub Actions performs:
 
-1. checks out the repository;
-2. prepares Python;
-3. provides liboqs;
-4. installs project dependencies;
-5. executes the test suite;
-6. regenerates deterministic derived results;
-7. checks that committed derived CSV outputs do not change.
+1. repository checkout;
+2. Python setup;
+3. liboqs setup;
+4. dependency installation;
+5. test execution;
+6. deterministic result regeneration;
+7. comparison with committed derived CSV outputs.
 
 The CI does not rerun hardware benchmarks.
 
 This separation is intentional.
 
-Hardware timing results depend on the machine, operating system, background load and compiled implementation, while the analysis derived from committed raw measurements should be deterministic.
+Hardware timing results depend on:
 
-## Recommended reproduction workflow
+- machine;
+- operating system;
+- power configuration;
+- background load;
+- compiled implementation.
+
+Derived analysis from committed raw measurements should remain deterministic.
+
+## Recommended verification workflow
 
 To verify an existing commit:
 
@@ -269,4 +303,20 @@ python -m analysis.reproduce --figures
 python -m pytest
 ```
 
-A new hardware campaign should ideally begin from a clean Git working tree so that the recorded provenance clearly identifies the code used for the experiment.
+A new benchmark campaign should ideally start from a clean Git working tree so the recorded provenance identifies the exact code used for the experiment.
+
+## Current scope
+
+The reproducibility pipeline covers the current component-level benchmark.
+
+It does not yet include:
+
+```text
+native OpenSSL X25519 cross-checks
+native OpenSSL ECDSA cross-checks
+full TLS X25519MLKEM768 interoperability
+serialized TLS KeyShare benchmarking
+Linux server measurements
+```
+
+These are future extensions rather than requirements for reproducing the committed results.
