@@ -1,7 +1,4 @@
 import argparse
-import json
-import platform
-import sys
 
 from pathlib import Path
 from time import perf_counter_ns
@@ -214,45 +211,6 @@ def benchmark_algorithm(algorithm):
 
     return rows
 
-
-def save_environment(run_dir, run_id):
-
-    environment = {
-        "run_id": run_id,
-        "python_version": sys.version,
-        "platform": platform.platform(),
-        "processor": platform.processor(),
-        "liboqs_version": oqs.oqs_version(),
-        "liboqs_python_version":
-            oqs.oqs_python_version(),
-        "warmup_iterations":
-            WARMUP_ITERATIONS,
-        "benchmark_iterations":
-            BENCHMARK_ITERATIONS,
-    }
-
-    output_path = (
-        run_dir / "environment.json"
-    )
-
-    with open(
-        output_path,
-        "w",
-        encoding="utf-8",
-    ) as file:
-
-        json.dump(
-            environment,
-            file,
-            indent=4,
-        )
-
-    print(
-        f"\nEnvironment saved to: "
-        f"{output_path}"
-    )
-
-
 def main():
 
     parser = argparse.ArgumentParser()
@@ -297,17 +255,13 @@ def main():
     )
 
     output_path = (
-        run_dir / "ml_kem_benchmark.csv"
+        run_dir
+        / "ml_kem_benchmark.csv"
     )
 
     df.to_csv(
         output_path,
         index=False,
-    )
-
-    save_environment(
-        run_dir,
-        args.run_id,
     )
 
     print("\n")
@@ -338,7 +292,6 @@ def main():
         f"\nBenchmark saved to: "
         f"{output_path}"
     )
-
 
 if __name__ == "__main__":
     main()

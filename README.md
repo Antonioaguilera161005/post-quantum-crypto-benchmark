@@ -16,13 +16,13 @@ On the benchmark environment used in this project:
 
 | Comparison | Main result |
 |---|---:|
-| ML-KEM-768 vs X25519 | **1.04×** total cryptographic work |
+| ML-KEM-768 vs X25519 | **Comparable compute** — 1.04× point estimate (95% CI: 0.89×–1.17×) |
 | ML-KEM-768 vs X25519 | **35.5×** transmitted cryptographic material |
-| X25519MLKEM768 vs X25519 | **2.04×** total cryptographic work |
+| X25519MLKEM768 vs X25519 | **2.04×** total cryptographic work (95% CI: 1.89×–2.17×) |
 | X25519MLKEM768 vs X25519 | **1.67×** server-side cryptographic work |
 | X25519MLKEM768 vs X25519 | **36.5×** transmitted cryptographic material |
-| ML-DSA-44 signing vs ECDSA P-256 | **10.25×** |
-| ML-DSA-44 verification vs ECDSA P-256 | **1.24×** |
+| ML-DSA-44 signing vs ECDSA P-256 | **10.25×** (95% CI: 9.37×–11.11×) |
+| ML-DSA-44 verification vs ECDSA P-256 | **1.24×** (95% CI: 1.15×–1.32×) |
 | ML-DSA-44 signature size vs ECDSA P-256 | **34.1×** |
 
 The most important observation is that, in this optimized environment, **ML-KEM computation is relatively inexpensive**.
@@ -198,8 +198,7 @@ Each primitive benchmark uses:
 This gives approximately:
 
 ```text
-20,000 measurements
-```
+20,000 timing samples across 10 independent runs```
 
 per benchmarked primitive operation.
 
@@ -216,6 +215,25 @@ Results include:
 - coefficient of variation between run means
 
 Raw runs are preserved independently to avoid relying on a single benchmark execution.
+
+### Confidence intervals
+
+Relative-performance confidence intervals are estimated using a
+non-parametric bootstrap over the **10 independent benchmark runs**.
+
+The individual timing iterations inside each run are not treated as
+independent experimental replicates.
+
+The analysis uses:
+
+- 10,000 bootstrap resamples;
+- a fixed random seed for reproducibility;
+- paired run-level observations where classical and PQ measurements
+  originate from the same benchmark campaign.
+
+The generated confidence intervals are stored in:
+
+`results/raw/aggregated/bootstrap_confidence_intervals.csv`
 
 ---
 
@@ -295,8 +313,12 @@ This cross-check is used to detect accidental benchmarking against an unoptimize
 
 ![Key establishment compute](results/figures/key_establishment_compute.png)
 
-A major result is that optimized ML-KEM-768 is **not dramatically slower than X25519** in this environment when complete cryptographic work is compared.
+The measurements suggest that optimized ML-KEM-768 and X25519 have
+**comparable total cryptographic cost in this environment**.
 
+The point estimate is 1.04×, but the 95% bootstrap confidence interval
+is 0.89×–1.17×, so the experiment does not support a precise claim that
+ML-KEM-768 is either faster or slower than X25519 on this system.
 ---
 
 ## Server-Side Work
@@ -690,8 +712,15 @@ Instead:
 
 ```text
 ML-KEM-768:
-~1.04× total cryptographic work vs X25519
+comparable total cryptographic work to X25519
+point estimate: 1.04×
+95% bootstrap CI: 0.89×–1.17×
 ~35.5× cryptographic material transmitted
+
+X25519MLKEM768:
+~2.04× total cryptographic work
+95% bootstrap CI: 1.89×–2.17×
+~36.5× cryptographic material transmitted
 
 X25519MLKEM768:
 ~2.04× total cryptographic work
@@ -951,42 +980,25 @@ python -m benchmarks.run_benchmark_suite
 python -m benchmarks.run_signature_suite
 ```
 
-## Aggregate key-establishment results
+## Reproducing derived results
 
-```powershell
-python -m analysis.aggregate_benchmarks
+The committed raw benchmark runs are treated as experimental inputs.
+
+All deterministic statistical analyses and economic models can be regenerated from those measurements with:
+
+```bash
+python -m analysis.reproduce
 ```
 
-This also regenerates the canonical RFC 10024 key-establishment model.
+To regenerate the figures as well:
 
-## Aggregate signatures
-
-```powershell
-python -m analysis.aggregate_signatures
+```bash
+python -m analysis.reproduce --figures
 ```
 
----
+Hardware-dependent benchmark measurements are intentionally not rerun by this command or by continuous integration.
 
-# Reproducing the Economic Models
-
-```powershell
-python -m cost_model.operational_impact
-python -m cost_model.cloud_network_cost
-python -m cost_model.provider_compute_cost
-python -m cost_model.total_operational_cost
-
-python -m cost_model.signature_operational_impact
-python -m cost_model.signature_cloud_cost
-
-python -m cost_model.migration_cost
-python -m cost_model.migration_sensitivity
-```
-
-Generate final figures:
-
-```powershell
-python -m analysis.generate_figures
-```
+Continuous integration verifies that the committed derived CSV results can be reproduced deterministically from the committed raw benchmark measurements.
 
 ---
 

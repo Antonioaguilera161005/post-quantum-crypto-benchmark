@@ -1,0 +1,22 @@
+Configuration info
+==================
+Target platform:  AMD64-Windows-10.0.26200
+Compiler:         Microsoft C/C++ (195136260)
+Compile options:  [/wd4146;/MT;/wd4996;/wd4244]
+OQS version:      0.16.0 (major: 0, minor: 16, patch: 0)
+OpenSSL enabled:  No
+AES:              NI
+SHA-2:            C
+SHA-3:            C
+OQS build flags:  BUILD_SHARED_LIBS OQS_DIST_BUILD OQS_LIBJADE_BUILD OQS_OPT_TARGET=auto CMAKE_BUILD_TYPE=Release 
+CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
+Speed test
+==========
+Started at 2026-10-05 11:31:54
+Operation                            | Iterations | Total time (s) | Time (us): mean | pop. stdev | CPU cycles: mean          | pop. stdev
+------------------------------------ | ----------:| --------------:| ---------------:| ----------:| -------------------------:| ----------:
+ML-DSA-44                            |            |                |                 |            |                           |           
+keypair                              |      32074 |          3.001 |          93.565 |    700.489 |                       933 |        623
+sign                                 |       9266 |          3.003 |         324.088 |   1539.107 |                      3237 |       2103
+verify                               |      32476 |          3.001 |          92.407 |    778.801 |                       922 |        116
+Ended at 2026-10-05 11:32:03

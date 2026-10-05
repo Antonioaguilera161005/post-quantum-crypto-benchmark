@@ -2,8 +2,20 @@ import subprocess
 import sys
 import time
 
+from pathlib import Path
+
+from benchmarks.environment import (
+    get_campaign_metadata,
+    run_native_crosscheck,
+    save_run_environment,
+)
+
 
 RUNS = 10
+
+WARMUP_ITERATIONS = 100
+BENCHMARK_ITERATIONS = 2000
+
 
 BENCHMARKS = [
     "benchmarks.benchmark_ecdsa",
@@ -13,18 +25,43 @@ BENCHMARKS = [
 
 def main():
 
-    print("=" * 70)
-    print(" DIGITAL SIGNATURE BENCHMARK SUITE")
-    print(f" {RUNS} independent runs")
-    print("=" * 70)
+    campaign_metadata = (
+        get_campaign_metadata()
+    )
 
-    for run_id in range(1, RUNS + 1):
+    print("=" * 80)
+    print(
+        " DIGITAL SIGNATURE BENCHMARK SUITE"
+    )
+    print(
+        f" {RUNS} independent runs"
+    )
+    print("=" * 80)
 
-        print("\n" + "#" * 70)
-        print(f" RUN {run_id}/{RUNS}")
-        print("#" * 70)
+    native_crosscheck = (
+        run_native_crosscheck(
+            "signature"
+        )
+    )
+
+    for run_id in range(
+        1,
+        RUNS + 1,
+    ):
+
+        print("\n")
+        print("#" * 80)
+        print(
+            f" RUN {run_id}/{RUNS}"
+        )
+        print("#" * 80)
 
         for module in BENCHMARKS:
+
+            print(
+                f"\nRunning "
+                f"{module}..."
+            )
 
             subprocess.run(
                 [
@@ -37,12 +74,52 @@ def main():
                 check=True,
             )
 
+        run_dir = (
+            Path(
+                "results/raw/runs"
+            )
+            / f"run_{run_id:02d}"
+        )
+
+        save_run_environment(
+            run_dir=run_dir,
+            run_id=run_id,
+            suite_name=(
+                "digital_signatures"
+            ),
+            native_crosscheck=(
+                native_crosscheck
+            ),
+            campaign_metadata=(
+                campaign_metadata
+            ),
+            warmup_iterations=(
+                WARMUP_ITERATIONS
+            ),
+            benchmark_iterations=(
+                BENCHMARK_ITERATIONS
+            ),
+        )
+
         if run_id < RUNS:
+            print(
+                "\nCooling down for "
+                "3 seconds..."
+            )
+
             time.sleep(3)
 
-    print("\n" + "=" * 70)
-    print(" SIGNATURE BENCHMARKS COMPLETE")
-    print("=" * 70)
+    print(
+        "\n"
+        + "=" * 80
+    )
+
+    print(
+        " DIGITAL SIGNATURE "
+        "BENCHMARKS COMPLETE"
+    )
+
+    print("=" * 80)
 
 
 if __name__ == "__main__":
