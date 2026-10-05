@@ -1,10 +1,150 @@
 {
     "run_id": 10,
-    "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
-    "platform": "Windows-10-10.0.26200-SP0",
+    "cpu_model": "AMD Ryzen 5 7520U with Radeon Graphics",
     "processor": "AMD64 Family 23 Model 160 Stepping 0, AuthenticAMD",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "machine": "AMD64",
+    "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "python_executable": "C:\\Users\\anton\\OneDrive\\Escritorio\\Projects\\pqc-benchmark\\.venv\\Scripts\\python.exe",
+    "cryptography_version": "50.0.2",
+    "openssl_version": "OpenSSL 4.0.3 29 Sep 2026",
     "liboqs_version": "0.16.0",
     "liboqs_python_version": "0.16.0.1",
+    "liboqs_library_path": "C:\\Users\\anton\\_oqs_release\\bin\\oqs.dll",
+    "oqs_install_path": "C:\\Users\\anton\\_oqs_release",
+    "build_configuration": "Release",
+    "oqs_dist_build": true,
+    "oqs_build_flags": "BUILD_SHARED_LIBS OQS_DIST_BUILD OQS_LIBJADE_BUILD OQS_OPT_TARGET=auto CMAKE_BUILD_TYPE=Release",
+    "cpu_extensions": [
+        "ADX",
+        "AES",
+        "AVX",
+        "AVX2",
+        "BMI1",
+        "BMI2",
+        "PCLMULQDQ",
+        "POPCNT",
+        "SSE",
+        "SSE2",
+        "SSE3"
+    ],
+    "compiler": "Microsoft C/C++ (195136260)",
+    "target_platform": "AMD64-Windows-10.0.26200",
+    "windows_power_scheme": "GUID de plan de energ\u00a1a: 381b4222-f694-41f0-9685-ff5bb260df2e  (Equilibrado)",
     "warmup_iterations": 100,
-    "benchmark_iterations": 2000
+    "benchmark_iterations": 2000,
+    "suite_records": {
+        "key_establishment": {
+            "campaign_started_at_utc": "2026-10-05T11:58:20.553863+00:00",
+            "git_commit": "eebe35e810b54017678ff6b7593272dede38b677",
+            "git_dirty_at_campaign_start": false,
+            "recorded_at_utc": "2026-10-05T12:00:44.417269+00:00",
+            "native_crosscheck": {
+                "algorithm": "ML-KEM-768",
+                "binary": "C:\\Users\\anton\\liboqs-release\\build\\tests\\speed_kem.exe",
+                "duration_seconds_per_operation": 3,
+                "raw_output_file": "results\\native\\ml_kem_768_speed.txt",
+                "configuration": {
+                    "target_platform": "AMD64-Windows-10.0.26200",
+                    "compiler": "Microsoft C/C++ (195136260)",
+                    "compile_options": "[/wd4146;/MT;/wd4996;/wd4244]",
+                    "oqs_version": "0.16.0 (major: 0, minor: 16, patch: 0)",
+                    "openssl_enabled": "No",
+                    "aes_implementation": "NI",
+                    "sha2_implementation": "C",
+                    "sha3_implementation": "C",
+                    "oqs_build_flags": "BUILD_SHARED_LIBS OQS_DIST_BUILD OQS_LIBJADE_BUILD OQS_OPT_TARGET=auto CMAKE_BUILD_TYPE=Release",
+                    "cpu_extensions_active": "ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3",
+                    "build_configuration": "Release",
+                    "oqs_dist_build": true,
+                    "cpu_extensions": [
+                        "ADX",
+                        "AES",
+                        "AVX",
+                        "AVX2",
+                        "BMI1",
+                        "BMI2",
+                        "PCLMULQDQ",
+                        "POPCNT",
+                        "SSE",
+                        "SSE2",
+                        "SSE3"
+                    ]
+                },
+                "operation_means": {
+                    "keygen": {
+                        "iterations": 48868,
+                        "total_time_seconds": 3.001,
+                        "mean_microseconds": 61.41
+                    },
+                    "encaps": {
+                        "iterations": 48970,
+                        "total_time_seconds": 3.003,
+                        "mean_microseconds": 61.323
+                    },
+                    "decaps": {
+                        "iterations": 39236,
+                        "total_time_seconds": 3.002,
+                        "mean_microseconds": 76.511
+                    }
+                }
+            }
+        },
+        "digital_signatures": {
+            "campaign_started_at_utc": "2026-10-05T11:58:20.553863+00:00",
+            "git_commit": "eebe35e810b54017678ff6b7593272dede38b677",
+            "git_dirty_at_campaign_start": false,
+            "recorded_at_utc": "2026-10-05T12:03:14.019376+00:00",
+            "native_crosscheck": {
+                "algorithm": "ML-DSA-44",
+                "binary": "C:\\Users\\anton\\liboqs-release\\build\\tests\\speed_sig.exe",
+                "duration_seconds_per_operation": 3,
+                "raw_output_file": "results\\native\\ml_dsa_44_speed.txt",
+                "configuration": {
+                    "target_platform": "AMD64-Windows-10.0.26200",
+                    "compiler": "Microsoft C/C++ (195136260)",
+                    "compile_options": "[/wd4146;/MT;/wd4996;/wd4244]",
+                    "oqs_version": "0.16.0 (major: 0, minor: 16, patch: 0)",
+                    "openssl_enabled": "No",
+                    "aes_implementation": "NI",
+                    "sha2_implementation": "C",
+                    "sha3_implementation": "C",
+                    "oqs_build_flags": "BUILD_SHARED_LIBS OQS_DIST_BUILD OQS_LIBJADE_BUILD OQS_OPT_TARGET=auto CMAKE_BUILD_TYPE=Release",
+                    "cpu_extensions_active": "ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3",
+                    "build_configuration": "Release",
+                    "oqs_dist_build": true,
+                    "cpu_extensions": [
+                        "ADX",
+                        "AES",
+                        "AVX",
+                        "AVX2",
+                        "BMI1",
+                        "BMI2",
+                        "PCLMULQDQ",
+                        "POPCNT",
+                        "SSE",
+                        "SSE2",
+                        "SSE3"
+                    ]
+                },
+                "operation_means": {
+                    "keypair": {
+                        "iterations": 36054,
+                        "total_time_seconds": 3.014,
+                        "mean_microseconds": 83.597
+                    },
+                    "sign": {
+                        "iterations": 9670,
+                        "total_time_seconds": 3.0,
+                        "mean_microseconds": 310.238
+                    },
+                    "verify": {
+                        "iterations": 33362,
+                        "total_time_seconds": 3.0,
+                        "mean_microseconds": 89.923
+                    }
+                }
+            }
+        }
+    }
 }

@@ -10,28 +10,32 @@ The central question is:
 
 ---
 
-## Key Findings
+## Key findings
 
-On the benchmark environment used in this project:
-
-| Comparison | Main result |
+| Comparison | Result |
 |---|---:|
-| ML-KEM-768 vs X25519 | **Comparable compute** — 1.04× point estimate (95% CI: 0.89×–1.17×) |
-| ML-KEM-768 vs X25519 | **35.5×** transmitted cryptographic material |
-| X25519MLKEM768 vs X25519 | **2.04×** total cryptographic work (95% CI: 1.89×–2.17×) |
-| X25519MLKEM768 vs X25519 | **1.67×** server-side cryptographic work |
-| X25519MLKEM768 vs X25519 | **36.5×** transmitted cryptographic material |
-| ML-DSA-44 signing vs ECDSA P-256 | **10.25×** (95% CI: 9.37×–11.11×) |
-| ML-DSA-44 verification vs ECDSA P-256 | **1.24×** (95% CI: 1.15×–1.32×) |
-| ML-DSA-44 signature size vs ECDSA P-256 | **34.1×** |
+| ML-KEM-768 vs X25519 | **~1.10×** total cryptographic work (95% bootstrap CI: ~1.00×–1.20×) |
+| X25519MLKEM768 vs X25519 | **~2.10×** total cryptographic work (95% bootstrap CI: ~2.00×–2.20×) |
+| ML-KEM-768 server compute vs X25519 | **~0.71×** |
+| X25519MLKEM768 server compute vs X25519 | **~1.71×** |
+| ML-KEM-768 transmitted key-establishment material | **35.5×** X25519 |
+| X25519MLKEM768 transmitted key-establishment material | **36.5×** X25519 |
+| ML-DSA-44 signing vs ECDSA P-256 | **~9.09×** (95% bootstrap CI: ~7.39×–10.78×) |
+| ML-DSA-44 verification vs ECDSA P-256 | **~1.13×** (95% bootstrap CI: ~1.04×–1.22×) |
+| ML-DSA-44 public key size vs ECDSA P-256 | **~20.18×** |
+| ML-DSA-44 signature size vs ECDSA P-256 | **~34.09×** |
 
-The most important observation is that, in this optimized environment, **ML-KEM computation is relatively inexpensive**.
+In this benchmark environment, ML-KEM-768 showed a modest total compute
+overhead relative to X25519, while the hybrid X25519MLKEM768 construction
+required approximately twice the total cryptographic work.
 
-The much larger difference appears in **communication size**.
+The larger operational difference comes from transmitted cryptographic
+material rather than CPU time. Under the simplified cloud-cost model,
+100 million hybrid handshakes per month add approximately **$9.56/month
+on Azure** and **$8.68/month on GCP** relative to the classical baseline.
 
-At 100 million hybrid handshakes per month, approximately **97–98% of the simplified direct cloud cost modeled in this project comes from network egress rather than cryptographic CPU execution**.
-
----
+These cost figures are scenario outputs based on the configured pricing
+and traffic assumptions, not universal cloud-cost estimates.
 
 ## Measured vs Derived vs Modelled Results
 
@@ -964,15 +968,6 @@ python -c "import oqs; print(oqs.oqs_version()); print(oqs.native()._name)"
 
 ```powershell
 python -m benchmarks.run_benchmark_suite
-```
-
-## HKDF benchmark
-
-```powershell
-1..10 | ForEach-Object {
-    python -m benchmarks.benchmark_hkdf --run-id $_
-}
-```
 
 ## Digital signatures
 

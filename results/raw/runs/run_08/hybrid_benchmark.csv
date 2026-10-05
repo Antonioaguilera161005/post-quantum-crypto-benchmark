@@ -1,2 +1,2 @@
 algorithm,operation,benchmark_scope,iterations,mean_ms,median_ms,p95_ms,p99_ms,std_ms,min_ms,max_ms,ops_per_second,client_share_bytes,server_share_bytes,transmitted_bytes,shared_secret_bytes
-X25519MLKEM768,full_establishment_diagnostic,diagnostic_only,2000,0.403989,0.3734,0.597555,0.7078169999999997,0.11338018763875814,0.3662,2.6916,2475.314921940944,1216,1120,2336,64
+X25519MLKEM768,full_establishment_diagnostic,diagnostic_only,2000,0.36869864999999996,0.3454,0.5218249999999998,0.799074,0.08444769827045318,0.3213,1.3806,2712.242097984357,1216,1120,2336,64

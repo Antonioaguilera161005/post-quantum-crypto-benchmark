@@ -12,11 +12,11 @@ OQS build flags:  BUILD_SHARED_LIBS OQS_DIST_BUILD OQS_LIBJADE_BUILD OQS_OPT_TAR
 CPU exts active:  ADX AES AVX AVX2 BMI1 BMI2 PCLMULQDQ POPCNT SSE SSE2 SSE3
 Speed test
 ==========
-Started at 2026-10-05 11:31:54
+Started at 2026-10-05 14:00:44
 Operation                            | Iterations | Total time (s) | Time (us): mean | pop. stdev | CPU cycles: mean          | pop. stdev
 ------------------------------------ | ----------:| --------------:| ---------------:| ----------:| -------------------------:| ----------:
 ML-DSA-44                            |            |                |                 |            |                           |           
-keypair                              |      32074 |          3.001 |          93.565 |    700.489 |                       933 |        623
-sign                                 |       9266 |          3.003 |         324.088 |   1539.107 |                      3237 |       2103
-verify                               |      32476 |          3.001 |          92.407 |    778.801 |                       922 |        116
-Ended at 2026-10-05 11:32:03
+keypair                              |      36054 |          3.014 |          83.597 |    825.215 |                       834 |        191
+sign                                 |       9670 |          3.000 |         310.238 |   1580.036 |                      3099 |       2012
+verify                               |      33362 |          3.000 |          89.923 |    797.722 |                       897 |        185
+Ended at 2026-10-05 14:00:53
